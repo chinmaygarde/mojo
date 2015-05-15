@@ -94,6 +94,22 @@ source_set("process") {
     ]
   }
 
+  if (is_ios) {
+    sources -= [
+      "launch_posix.cc",
+      "process_metrics_posix.cc",
+    ]
+
+    set_sources_assignment_filter([])
+
+    sources += [
+      "process_handle_mac.cc",
+      "process_iterator_mac.cc",
+    ]
+
+    set_sources_assignment_filter(sources_assignment_filter)
+  }
+
   configs += [ "//base:base_implementation" ]
 
   deps = [
