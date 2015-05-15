@@ -28,6 +28,8 @@ def _args_to_config(args):
   target_os = None
   if args.android:
     target_os = Config.OS_ANDROID
+  elif args.ios:
+    target_os = Config.OS_IOS
 
   target_cpu = args.target_cpu
 
@@ -84,8 +86,8 @@ def _args_to_config(args):
     additional_args['gn_args'] = args.gn_args
 
   return Config(target_os=target_os, target_cpu=target_cpu,
-                is_debug=args.debug, dcheck_always_on=args.dcheck_always_on,
-                **additional_args)
+                is_simulator=args.simulator, is_debug=args.debug,
+                dcheck_always_on=args.dcheck_always_on, **additional_args)
 
 
 def _get_out_dir(config):
@@ -226,6 +228,12 @@ def main():
   os_group = parent_parser.add_mutually_exclusive_group()
   os_group.add_argument('--android', help='Build for Android',
                         action='store_true')
+  os_group.add_argument('--ios', help='Build for iOS',
+                        action='store_true')
+
+  parent_parser.add_argument('--simulator',
+                             help='Build for a simulator of the target',
+                             action='store_true')
 
   parent_parser.add_argument('--target-cpu',
                              help='CPU architecture to build for.',

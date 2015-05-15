@@ -24,6 +24,10 @@ def BuildDirectoryForConfig(config, src_root):
     subdir += "android_"
     if config.target_cpu != Config.ARCH_ARM:
       subdir += config.target_cpu + "_"
+  elif config.target_os == Config.OS_IOS:
+    subdir += "ios_"
+  if config.is_simulator:
+    subdir += "sim_"
   subdir += "Debug" if config.is_debug else "Release"
   if config.sanitizer == Config.SANITIZER_ASAN:
     subdir += "_asan"
@@ -56,21 +60,28 @@ def GNArgsForConfig(config):
 
   gn_args["dcheck_always_on"] = config.dcheck_always_on
 
-  if "use_nacl" in config.values:
-    gn_args["mojo_use_nacl"] = config.values["use_nacl"]
-
-  gn_args["mojo_use_go"] = config.values.get("mojo_use_go", False)
-  if gn_args["mojo_use_go"]:
-    gn_args["go_build_tool"] = config.values.get("go_build_tool")
-
   if config.target_os == Config.OS_ANDROID:
     gn_args["target_os"] = "android"
+  if config.target_os == Config.OS_IOS:
+    gn_args["target_os"] = "ios"
+    gn_args["use_ios_simulator"] = config.is_simulator
+    if config.is_simulator:
+      gn_args["use_libjpeg_turbo"] = False
   elif config.target_os == Config.OS_LINUX:
     gn_args["use_aura"] = False
     gn_args["use_glib"] = False
     gn_args["use_system_harfbuzz"] = False
 
   gn_args["target_cpu"] = config.target_cpu
+
+  if config.target_os != Config.OS_IOS:
+    if "use_nacl" in config.values:
+      gn_args["mojo_use_nacl"] = config.values.get("use_nacl", False)
+
+    gn_args["mojo_use_go"] = config.values.get("mojo_use_go", False)
+    if gn_args["mojo_use_go"]:
+      gn_args["go_build_tool"] = config.values.get("go_build_tool")
+
 
   extra_args = config.values.get("gn_args")
   if extra_args:
