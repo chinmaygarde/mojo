@@ -64,6 +64,7 @@ def GNArgsForConfig(config):
     gn_args["target_os"] = "android"
   if config.target_os == Config.OS_IOS:
     gn_args["target_os"] = "ios"
+    gn_args["ios_deployment_target"] = "8.0"
     gn_args["use_ios_simulator"] = config.is_simulator
     if config.is_simulator:
       gn_args["use_libjpeg_turbo"] = False
