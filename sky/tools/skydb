@@ -58,6 +58,17 @@ def gn_args_from_build_dir(build_dir):
     return config
 
 
+def ensure_assets_are_downloaded(build_dir):
+    sky_pkg_dir = os.path.join(build_dir, 'gen', 'dart-pkg', 'sky')
+    sky_pkg_lib_dir = os.path.join(sky_pkg_dir, 'lib')
+    sky_icons_dir = \
+        os.path.join(sky_pkg_lib_dir, 'assets', 'material-design-icons')
+    if not os.path.isdir(sky_icons_dir):
+        logging.info('NOTE: sky/assets/material-design-icons missing, '
+                     'Running `download_material_design_icons` for you.')
+        subprocess.check_call(
+            [os.path.join(sky_pkg_lib_dir, 'download_material_design_icons')])
+
 class SkyDebugger(object):
     def __init__(self):
         self.pids = {}
@@ -180,6 +191,8 @@ class SkyDebugger(object):
         gn_args = gn_args_from_build_dir(self.paths.build_dir)
         is_android = 'android_sdk_version' in gn_args
 
+        ensure_assets_are_downloaded(args.build_dir)
+
         shell_found = True
         if is_android:
             apk_path = os.path.join(self.paths.build_dir, 'apks', ANDROID_APK_NAME)
@@ -201,16 +214,8 @@ class SkyDebugger(object):
             print "Cannot debug Release builds on Android"
             sys.exit(2)
 
-        sdk_root = os.path.join(self.paths.build_dir, 'gen', 'sky_sdk')
-        packages_root = os.path.join(sdk_root, 'packages_root')
-        subprocess.check_call([
-            os.path.join(self.paths.sky_tools_directory, 'deploy_sdk.py'),
-            '--build-dir', self.paths.build_dir,
-            '--non-interactive',
-            '--dev-environment',
-            '--fake-pub-get-into', packages_root,
-            sdk_root,
-        ])
+        dart_pkg_dir = os.path.join(self.paths.build_dir, 'gen', 'dart-pkg')
+        packages_root = os.path.join(dart_pkg_dir, 'packages')
 
         sky_server = self.sky_server_for_args(args, packages_root)
         self.pids['sky_server_pid'] = sky_server.start()

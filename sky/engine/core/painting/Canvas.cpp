@@ -111,7 +111,16 @@ void Canvas::clipRect(const Vector<float>& rect)
     m_canvas->clipRect(toSkRect(rect));
 }
 
-void Canvas::drawPaint(Paint* paint)
+void Canvas::drawPicture(Picture* picture)
+{
+    if (!m_canvas)
+        return;
+    ASSERT(picture);
+    ASSERT(m_displayList->isRecording());
+    m_canvas->drawPicture(picture->toSkia());
+}
+
+void Canvas::drawPaint(const Paint* paint)
 {
     if (!m_canvas)
         return;
@@ -138,7 +147,7 @@ void Canvas::drawOval(const Vector<float>& rect, const Paint* paint)
     m_canvas->drawOval(toSkRect(rect), paint->paint());
 }
 
-void Canvas::drawCircle(float x, float y, float radius, Paint* paint)
+void Canvas::drawCircle(float x, float y, float radius, const Paint* paint)
 {
     if (!m_canvas)
         return;

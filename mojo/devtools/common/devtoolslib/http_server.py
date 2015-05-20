@@ -38,6 +38,8 @@ class _SilentTCPServer(SocketServer.TCPServer):
   is useful because the client might stop while it is fetching an URL, which
   causes spurious error messages.
   """
+  allow_reuse_address = True
+
   def handle_error(self, request, client_address):
     """Override the base class method to have conditional logging."""
     if logging.getLogger().isEnabledFor(logging.DEBUG):
@@ -126,12 +128,16 @@ def _GetHandlerClassForPath(base_path):
   return RequestHandler
 
 
-def StartHttpServer(path):
-  """Starts an http server serving files from |path| on random
-  (system-allocated) port. Returns the server address.
+def StartHttpServer(local_dir_path, host_port=0):
+  """Starts an http server serving files from |path| on |host_port|. Pass 0
+  as |host_port| to use a system-allocated port.
+
+  Returns:
+    Tuple of the server address and the port on which it runs.
   """
-  assert path
-  httpd = _SilentTCPServer(('127.0.0.1', 0), _GetHandlerClassForPath(path))
+  assert local_dir_path
+  httpd = _SilentTCPServer(('127.0.0.1', host_port),
+                           _GetHandlerClassForPath(local_dir_path))
   atexit.register(httpd.shutdown)
 
   http_thread = threading.Thread(target=httpd.serve_forever)

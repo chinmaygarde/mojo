@@ -7,6 +7,7 @@
 
 #include "base/callback_forward.h"
 #include "base/macros.h"
+#include "base/memory/weak_ptr.h"
 #include "dart/runtime/include/dart_api.h"
 #include "sky/engine/wtf/OwnPtr.h"
 #include "sky/engine/wtf/text/AtomicString.h"
@@ -17,8 +18,9 @@ class AbstractModule;
 class BuiltinSky;
 class DOMDartState;
 class DartValue;
-class Document;
 class HTMLScriptElement;
+class KURL;
+class View;
 
 class DartController {
  public:
@@ -30,6 +32,8 @@ class DartController {
   typedef base::Callback<void(RefPtr<AbstractModule>, RefPtr<DartValue>)>
       LoadFinishedCallback;
 
+  void LoadMainLibrary(const KURL& url);
+
   void LoadScriptInModule(AbstractModule* module,
                           const String& source,
                           const TextPosition& textPosition,
@@ -39,7 +43,9 @@ class DartController {
                               HTMLScriptElement* script);
 
   void ClearForClose();
-  void CreateIsolateFor(Document* document);
+  void CreateIsolateFor(PassOwnPtr<DOMDartState> dom_dart_state,
+                        const KURL& url);
+  void InstallView(View* view);
 
   DOMDartState* dart_state() const { return dom_dart_state_.get(); }
 
@@ -49,8 +55,12 @@ class DartController {
                             const String& source,
                             const TextPosition& position);
 
+  void DidLoadMainLibrary(KURL url);
+
   OwnPtr<DOMDartState> dom_dart_state_;
   OwnPtr<BuiltinSky> builtin_sky_;
+
+  base::WeakPtrFactory<DartController> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(DartController);
 };

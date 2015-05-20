@@ -8,12 +8,14 @@
 #include "base/trace_event/trace_event.h"
 #include "mojo/public/cpp/application/connect.h"
 #include "sky/engine/public/platform/WebInputEvent.h"
+#include "sky/engine/public/platform/sky_display_metrics.h"
+#include "sky/engine/public/platform/sky_display_metrics.h"
 #include "sky/engine/public/web/Sky.h"
 #include "sky/engine/public/web/WebLocalFrame.h"
 #include "sky/engine/public/web/WebSettings.h"
 #include "sky/engine/public/web/WebView.h"
 #include "sky/services/platform/platform_impl.h"
-#include "sky/shell/java_service_provider.h"
+#include "sky/shell/service_provider.h"
 #include "sky/shell/ui/animator.h"
 #include "sky/shell/ui/input_event_converter.h"
 #include "sky/shell/ui/internals.h"
@@ -51,21 +53,10 @@ base::WeakPtr<Engine> Engine::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
-mojo::ServiceProviderPtr Engine::CreateServiceProvider() {
-  mojo::MessagePipe pipe;
-  config_.java_task_runner->PostTask(
-      FROM_HERE,
-      base::Bind(CreateJavaServiceProvider,
-                 base::Passed(mojo::MakeRequest<mojo::ServiceProvider>(
-                     pipe.handle1.Pass()))));
-  return mojo::MakeProxy(
-      mojo::InterfacePtrInfo<mojo::ServiceProvider>(pipe.handle0.Pass(), 0u));
-}
-
 void Engine::Init() {
   TRACE_EVENT0("sky", "Engine::Init");
 
-  service_provider_ = CreateServiceProvider();
+  service_provider_ = CreateServiceProvider(config_.service_provider_context);
   mojo::NetworkServicePtr network_service;
   mojo::ConnectToService(service_provider_.get(), &network_service);
   platform_impl_.reset(new PlatformImpl(network_service.Pass()));
@@ -81,8 +72,10 @@ void Engine::BeginFrame(base::TimeTicks frame_time) {
   double interval_sec = 1.0 / 60;
   blink::WebBeginFrameArgs args(frame_time_sec, deadline_sec, interval_sec);
 
-  web_view_->beginFrame(args);
-  web_view_->layout();
+  if (web_view_) {
+    web_view_->beginFrame(args);
+    web_view_->layout();
+  }
 }
 
 skia::RefPtr<SkPicture> Engine::Paint() {
@@ -94,7 +87,17 @@ skia::RefPtr<SkPicture> Engine::Paint() {
       physical_size_.width(), physical_size_.height(), &factory,
       SkPictureRecorder::kComputeSaveLayerInfo_RecordFlag));
 
-  web_view_->paint(canvas.get(), blink::WebRect(gfx::Rect(physical_size_)));
+  if (sky_view_) {
+    skia::RefPtr<SkPicture> picture = sky_view_->Paint();
+    canvas->clear(SK_ColorBLACK);
+    canvas->scale(device_pixel_ratio_, device_pixel_ratio_);
+    if (picture)
+      canvas->drawPicture(picture.get());
+  }
+
+  if (web_view_)
+    web_view_->paint(canvas.get(), blink::WebRect(gfx::Rect(physical_size_)));
+
   return skia::AdoptRef(recorder.endRecordingAsPicture());
 }
 
@@ -121,6 +124,14 @@ void Engine::OnViewportMetricsChanged(int width, int height,
                                       float device_pixel_ratio) {
   physical_size_.SetSize(width, height);
   device_pixel_ratio_ = device_pixel_ratio;
+
+  if (sky_view_) {
+    blink::SkyDisplayMetrics metrics;
+    metrics.physical_size = physical_size_;
+    metrics.device_pixel_ratio = device_pixel_ratio_;
+    sky_view_->SetDisplayMetrics(metrics);
+  }
+
   if (web_view_)
     UpdateWebViewSize();
 }
@@ -150,10 +161,20 @@ void Engine::OnInputEvent(InputEventPtr event) {
       ConvertEvent(event, device_pixel_ratio_);
   if (!web_event)
     return;
-  web_view_->handleInputEvent(*web_event);
+  if (sky_view_)
+    sky_view_->HandleInputEvent(*web_event);
+  if (web_view_)
+    web_view_->handleInputEvent(*web_event);
 }
 
 void Engine::LoadURL(const mojo::String& url) {
+  // Enable SkyView here.
+  if (false) {
+    sky_view_ = blink::SkyView::Create(this);
+    sky_view_->Load(GURL(url));
+    return;
+  }
+
   // Something bad happens if you try to call WebView::close and replace
   // the webview.  So for now we just load into the existing one. :/
   if (!web_view_)
@@ -178,7 +199,12 @@ void Engine::scheduleVisualUpdate() {
 
 void Engine::didCreateIsolate(blink::WebLocalFrame* frame,
                               Dart_Isolate isolate) {
-  Internals::Create(isolate, CreateServiceProvider());
+  Internals::Create(isolate,
+                    CreateServiceProvider(config_.service_provider_context));
+}
+
+void Engine::SchedulePaint() {
+  animator_->RequestFrame();
 }
 
 blink::ServiceProvider* Engine::services() {

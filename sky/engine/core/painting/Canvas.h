@@ -6,6 +6,7 @@
 #define SKY_ENGINE_CORE_PAINTING_CANVAS_H_
 
 #include "sky/engine/core/painting/Paint.h"
+#include "sky/engine/core/painting/Picture.h"
 #include "sky/engine/platform/graphics/DisplayList.h"
 #include "sky/engine/tonic/dart_wrappable.h"
 #include "sky/engine/wtf/PassRefPtr.h"
@@ -37,10 +38,13 @@ public:
 
     void clipRect(const Vector<float>& rect);
 
-    void drawPaint(Paint* paint);
+    void drawPicture(Picture* picture);
+    void drawPaint(const Paint* paint);
     void drawRect(const Vector<float>& rect, const Paint* paint);
     void drawOval(const Vector<float>& rect, const Paint* paint);
-    void drawCircle(float x, float y, float radius, Paint* paint);
+    void drawCircle(float x, float y, float radius, const Paint* paint);
+
+    SkCanvas* skCanvas() { return m_canvas; }
 
 protected:
     PassRefPtr<DisplayList> finishRecording();

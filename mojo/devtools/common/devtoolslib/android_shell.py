@@ -19,13 +19,17 @@ from devtoolslib.http_server import StartHttpServer
 from devtoolslib.shell import Shell
 
 
-# Tags used by the mojo shell application logs.
-LOGCAT_TAGS = [
+# Tags used by mojo shell Java logging.
+LOGCAT_JAVA_TAGS = [
     'AndroidHandler',
     'MojoFileHelper',
     'MojoMain',
     'MojoShellActivity',
     'MojoShellApplication',
+]
+
+# Tags used by native logging reflected in the logcat.
+LOGCAT_NATIVE_TAGS = [
     'chromium',
 ]
 
@@ -66,13 +70,16 @@ class AndroidShell(Shell):
   Args:
     adb_path: Path to adb, optional if adb is in PATH.
     target_device: Device to run on, if multiple devices are connected.
+    logcat_tags: Comma-separated list of additional logcat tags to use.
   """
 
-  def __init__(self, adb_path="adb", target_device=None, verbose_pipe=None):
+  def __init__(self, adb_path="adb", target_device=None, logcat_tags=None,
+               verbose_pipe=None):
     self.adb_path = adb_path
     self.target_device = target_device
     self.stop_shell_registered = False
     self.adb_running_as_root = False
+    self.additional_logcat_tags = logcat_tags
     self.verbose_pipe = verbose_pipe if verbose_pipe else open(os.devnull, 'w')
 
   def _CreateADBCommand(self, args):
@@ -142,17 +149,6 @@ class AndroidShell(Shell):
     atexit.register(_UnmapPort)
     return device_port
 
-  def _StartHttpServerForDirectory(self, path, port=0):
-    """Starts an http server serving files from |path|. Returns the local
-    url.
-    """
-    assert path
-    print 'starting http for', path
-    server_address = StartHttpServer(path)
-
-    print 'local port=%d' % server_address[1]
-    return 'http://127.0.0.1:%d/' % self._MapPort(port, server_address[1])
-
   def _StartHttpServerForOriginMapping(self, mapping, port):
     """If |mapping| points at a local file starts an http server to serve files
     from the directory and returns the new mapping.
@@ -168,7 +164,7 @@ class AndroidShell(Shell):
       return mapping
     # Assume the destination is a local file. Start a local server that
     # redirects to it.
-    localUrl = self._StartHttpServerForDirectory(dest, port)
+    localUrl = self.ServeLocalDirectory(dest, port)
     print 'started server at %s for %s' % (dest, localUrl)
     return parts[0] + '=' + localUrl
 
@@ -219,9 +215,31 @@ class AndroidShell(Shell):
     shell.
     """
 
-    origin_url = self._StartHttpServerForDirectory(
+    origin_url = self.ServeLocalDirectory(
         local_dir, DEFAULT_BASE_PORT if fixed_port else 0)
     return "--origin=" + origin_url
+
+  def ServeLocalDirectory(self, local_dir_path, port=0):
+    """Serves the content of the local (host) directory, making it available to
+    the shell under the url returned by the function.
+
+    The server will run on a separate thread until the program terminates. The
+    call returns immediately.
+
+    Args:
+      local_dir_path: path to the directory to be served
+      port: port at which the server will be available to the shell
+
+    Returns:
+      The url that the shell can use to access the content of |local_dir_path|.
+    """
+    assert local_dir_path
+    print 'starting http for', local_dir_path
+    server_address = StartHttpServer(local_dir_path)
+
+    print 'local port=%d' % server_address[1]
+    return 'http://127.0.0.1:%d/' % self._MapPort(port,
+                                                  server_address[1])
 
   def StartShell(self,
                  arguments,
@@ -284,7 +302,9 @@ class AndroidShell(Shell):
       retrieved.
     """
     self.CleanLogs()
-    p = self.ShowLogs()
+    # Don't carry over the native logs from logcat - we have these in the
+    # stdout.
+    p = self.ShowLogs(include_native_logs=False)
     self.StartShell(arguments, sys.stdout, p.terminate)
     p.wait()
     return None
@@ -318,16 +338,21 @@ class AndroidShell(Shell):
     """Cleans the logs on the device."""
     subprocess.check_call(self._CreateADBCommand(['logcat', '-c']))
 
-  def ShowLogs(self):
+  def ShowLogs(self, include_native_logs=True):
     """Displays the log for the mojo shell.
 
     Returns:
       The process responsible for reading the logs.
     """
-    logcat = subprocess.Popen(self._CreateADBCommand([
-                               'logcat',
-                               '-s',
-                               ' '.join(LOGCAT_TAGS)]),
-                              stdout=sys.stdout)
+    tags = LOGCAT_JAVA_TAGS
+    if include_native_logs:
+      tags.extend(LOGCAT_NATIVE_TAGS)
+    if self.additional_logcat_tags is not None:
+      tags.extend(self.additional_logcat_tags.split(","))
+    logcat = subprocess.Popen(
+        self._CreateADBCommand(['logcat',
+                                '-s',
+                                ' '.join(tags)]),
+        stdout=sys.stdout)
     atexit.register(_ExitIfNeeded, logcat)
     return logcat
