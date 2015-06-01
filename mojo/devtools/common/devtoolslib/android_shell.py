@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 import atexit
+import hashlib
 import itertools
 import json
 import logging
@@ -11,9 +12,9 @@ import os.path
 import random
 import subprocess
 import sys
+import tempfile
 import threading
 import time
-import urlparse
 
 from devtoolslib.http_server import StartHttpServer
 from devtoolslib.shell import Shell
@@ -35,27 +36,10 @@ LOGCAT_NATIVE_TAGS = [
 
 MOJO_SHELL_PACKAGE_NAME = 'org.chromium.mojo.shell'
 
-MAPPING_PREFIX = '--map-origin='
 
 DEFAULT_BASE_PORT = 31337
 
 _logger = logging.getLogger()
-
-
-def _IsMapOrigin(arg):
-  """Returns whether arg is a --map-origin argument."""
-  return arg.startswith(MAPPING_PREFIX)
-
-
-def _Split(l, pred):
-  positive = []
-  negative = []
-  for v in l:
-    if pred(v):
-      positive.append(v)
-    else:
-      negative.append(v)
-  return (positive, negative)
 
 
 def _ExitIfNeeded(process):
@@ -149,41 +133,6 @@ class AndroidShell(Shell):
     atexit.register(_UnmapPort)
     return device_port
 
-  def _StartHttpServerForOriginMapping(self, mapping, port):
-    """If |mapping| points at a local file starts an http server to serve files
-    from the directory and returns the new mapping.
-
-    This is intended to be called for every --map-origin value.
-    """
-    parts = mapping.split('=')
-    if len(parts) != 2:
-      return mapping
-    dest = parts[1]
-    # If the destination is a url, don't map it.
-    if urlparse.urlparse(dest)[0]:
-      return mapping
-    # Assume the destination is a local file. Start a local server that
-    # redirects to it.
-    localUrl = self.ServeLocalDirectory(dest, port)
-    print 'started server at %s for %s' % (dest, localUrl)
-    return parts[0] + '=' + localUrl
-
-  def _StartHttpServerForOriginMappings(self, map_parameters, fixed_port):
-    """Calls _StartHttpServerForOriginMapping for every --map-origin
-    argument.
-    """
-    if not map_parameters:
-      return []
-
-    original_values = list(itertools.chain(
-        *map(lambda x: x[len(MAPPING_PREFIX):].split(','), map_parameters)))
-    sorted(original_values)
-    result = []
-    for i, value in enumerate(original_values):
-      result.append(self._StartHttpServerForOriginMapping(
-          value, DEFAULT_BASE_PORT + 1 + i if fixed_port else 0))
-    return [MAPPING_PREFIX + ','.join(result)]
-
   def _RunAdbAsRoot(self):
     if self.adb_running_as_root:
       return
@@ -198,16 +147,47 @@ class AndroidShell(Shell):
         stdout=self.verbose_pipe)
     self.adb_running_as_root = True
 
+  def _IsShellPackageInstalled(self):
+    # Adb should print one line if the package is installed and return empty
+    # string otherwise.
+    return len(subprocess.check_output(self._CreateADBCommand([
+        'shell', 'pm', 'list', 'packages', MOJO_SHELL_PACKAGE_NAME]))) > 0
+
   def InstallApk(self, shell_apk_path):
     """Installs the apk on the device.
+
+    This method computes checksum of the APK
+    and skips the installation if the fingerprint matches the one saved on the
+    device upon the previous installation.
 
     Args:
       shell_apk_path: Path to the shell Android binary.
     """
-    subprocess.check_call(
-        self._CreateADBCommand(['install', '-r', shell_apk_path, '-i',
-                                MOJO_SHELL_PACKAGE_NAME]),
-        stdout=self.verbose_pipe)
+    device_sha1_path = '/sdcard/%s/%s.sha1' % (MOJO_SHELL_PACKAGE_NAME,
+                                               'MojoShell')
+    apk_sha1 = hashlib.sha1(open(shell_apk_path, 'rb').read()).hexdigest()
+    device_apk_sha1 = subprocess.check_output(self._CreateADBCommand([
+        'shell', 'cat', device_sha1_path]))
+    do_install = (apk_sha1 != device_apk_sha1 or
+                  not self._IsShellPackageInstalled())
+
+    if do_install:
+      subprocess.check_call(
+          self._CreateADBCommand(['install', '-r', shell_apk_path, '-i',
+                                  MOJO_SHELL_PACKAGE_NAME]),
+          stdout=self.verbose_pipe)
+
+      # Update the stamp on the device.
+      with tempfile.NamedTemporaryFile() as fp:
+        fp.write(apk_sha1)
+        fp.flush()
+        subprocess.check_call(self._CreateADBCommand(['push', fp.name,
+                                                      device_sha1_path]),
+                              stdout=self.verbose_pipe)
+    else:
+      # To ensure predictable state after running InstallApk(), we need to stop
+      # the shell here, as this is what "adb install" implicitly does.
+      self.StopShell()
 
   def SetUpLocalOrigin(self, local_dir, fixed_port=True):
     """Sets up a local http server to serve files in |local_dir| along with
@@ -244,8 +224,7 @@ class AndroidShell(Shell):
   def StartShell(self,
                  arguments,
                  stdout=None,
-                 on_application_stop=None,
-                 fixed_port=True):
+                 on_application_stop=None):
     """Starts the mojo shell, passing it the given arguments.
 
     The |arguments| list must contain the "--origin=" arg. SetUpLocalOrigin()
@@ -280,12 +259,7 @@ class AndroidShell(Shell):
       self._ReadFifo(STDOUT_PIPE, stdout, on_application_stop)
     # The origin has to be specified whether it's local or external.
     assert any("--origin=" in arg for arg in arguments)
-
-    # Extract map-origin arguments.
-    map_parameters, other_parameters = _Split(arguments, _IsMapOrigin)
-    parameters += other_parameters
-    parameters += self._StartHttpServerForOriginMappings(map_parameters,
-                                                         fixed_port)
+    parameters.extend(arguments)
 
     if parameters:
       encodedParameters = json.dumps(parameters)
@@ -323,7 +297,7 @@ class AndroidShell(Shell):
     (r, w) = os.pipe()
     with os.fdopen(r, "r") as rf:
       with os.fdopen(w, "w") as wf:
-        self.StartShell(arguments, wf, wf.close, False)
+        self.StartShell(arguments, wf, wf.close)
         output = rf.read()
         return None, output
 

@@ -42,13 +42,19 @@ base::FilePath toPath(Array<uint8_t> path) {
       std::string(reinterpret_cast<char*>(&path.front()), path.size()));
 }
 
+HttpHeaderPtr RandomEtagHeader() {
+  auto etag_header = HttpHeader::New();
+  etag_header->name = "ETag";
+  etag_header->value = base::StringPrintf("%f", base::RandDouble());
+  return etag_header;
+}
+
 }  // namespace
 
 TEST_F(URLResponseDiskCacheAppTest, GetFile) {
   URLResponsePtr url_response = mojo::URLResponse::New();
   url_response->url = "http://www.example.com/1";
-  url_response->headers = Array<String>(1);
-  url_response->headers[0] = base::StringPrintf("ETag: %f", base::RandDouble());
+  url_response->headers.push_back(RandomEtagHeader());
   DataPipe pipe;
   std::string content = base::RandBytesAsString(32);
   uint32_t num_bytes = content.size();
@@ -67,7 +73,7 @@ TEST_F(URLResponseDiskCacheAppTest, GetFile) {
         file = toPath(received_file_path.Pass());
         cache_dir = toPath(received_cache_dir_path.Pass());
       });
-  url_response_disk_cache_.WaitForIncomingMethodCall();
+  url_response_disk_cache_.WaitForIncomingResponse();
   ASSERT_FALSE(file.empty());
   std::string received_content;
   ASSERT_TRUE(base::ReadFileToString(file, &received_content));
@@ -77,8 +83,7 @@ TEST_F(URLResponseDiskCacheAppTest, GetFile) {
 TEST_F(URLResponseDiskCacheAppTest, GetExtractedContent) {
   URLResponsePtr url_response = mojo::URLResponse::New();
   url_response->url = "http://www.example.com/2";
-  url_response->headers = Array<String>(1);
-  url_response->headers[0] = base::StringPrintf("ETag: %f", base::RandDouble());
+  url_response->headers.push_back(RandomEtagHeader());
   DataPipe pipe;
   std::string content = base::RandBytesAsString(32);
   uint32_t num_bytes = kTestData.size;
@@ -97,7 +102,7 @@ TEST_F(URLResponseDiskCacheAppTest, GetExtractedContent) {
         extracted_dir = toPath(received_extracted_dir.Pass());
         cache_dir = toPath(received_cache_dir_path.Pass());
       });
-  url_response_disk_cache_.WaitForIncomingMethodCall();
+  url_response_disk_cache_.WaitForIncomingResponse();
   ASSERT_FALSE(extracted_dir.empty());
   base::FilePath file1 = extracted_dir.Append("file1");
   std::string file_content;
@@ -111,9 +116,13 @@ TEST_F(URLResponseDiskCacheAppTest, GetExtractedContent) {
 TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
   URLResponsePtr url_response = mojo::URLResponse::New();
   url_response->url = "http://www.example.com/3";
-  url_response->headers = Array<String>(1);
-  std::string etag = base::StringPrintf("ETag: %f", base::RandDouble());
-  url_response->headers[0] = etag;
+  std::string etag_value = base::StringPrintf("%f", base::RandDouble());
+  {
+    auto etag_header = HttpHeader::New();
+    etag_header->name = "ETag";
+    etag_header->value = etag_value;
+    url_response->headers.push_back(etag_header.Pass());
+  }
   DataPipe pipe1;
   std::string content = base::RandBytesAsString(32);
   uint32_t num_bytes = content.size();
@@ -132,7 +141,7 @@ TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
         file = toPath(received_file_path.Pass());
         cache_dir = toPath(received_cache_dir_path.Pass());
       });
-  url_response_disk_cache_.WaitForIncomingMethodCall();
+  url_response_disk_cache_.WaitForIncomingResponse();
   ASSERT_FALSE(file.empty());
   std::string received_content;
   ASSERT_TRUE(base::ReadFileToString(file, &received_content));
@@ -147,8 +156,12 @@ TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
   // different content. The cached value should be returned.
   url_response = mojo::URLResponse::New();
   url_response->url = "http://www.example.com/3";
-  url_response->headers = Array<String>(1);
-  url_response->headers[0] = etag;
+  {
+    auto etag_header = HttpHeader::New();
+    etag_header->name = "ETag";
+    etag_header->value = etag_value;
+    url_response->headers.push_back(etag_header.Pass());
+  }
   DataPipe pipe2;
   std::string new_content = base::RandBytesAsString(32);
   num_bytes = new_content.size();
@@ -165,7 +178,7 @@ TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
         file = toPath(received_file_path.Pass());
         cache_dir = toPath(received_cache_dir_path.Pass());
       });
-  url_response_disk_cache_.WaitForIncomingMethodCall();
+  url_response_disk_cache_.WaitForIncomingResponse();
   ASSERT_FALSE(file.empty());
   ASSERT_TRUE(base::ReadFileToString(file, &received_content));
   EXPECT_EQ(content, received_content);
@@ -179,8 +192,7 @@ TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
   // that the new content is returned, and the cached files is deleted.
   url_response = mojo::URLResponse::New();
   url_response->url = "http://www.example.com/3";
-  url_response->headers = Array<String>(1);
-  url_response->headers[0] = base::StringPrintf("ETag: %f", base::RandDouble());
+  url_response->headers.push_back(RandomEtagHeader());
   DataPipe pipe3;
   new_content = base::RandBytesAsString(32);
   num_bytes = new_content.size();
@@ -197,7 +209,7 @@ TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
         file = toPath(received_file_path.Pass());
         cache_dir = toPath(received_cache_dir_path.Pass());
       });
-  url_response_disk_cache_.WaitForIncomingMethodCall();
+  url_response_disk_cache_.WaitForIncomingResponse();
   ASSERT_FALSE(file.empty());
   ASSERT_TRUE(base::ReadFileToString(file, &received_content));
   EXPECT_EQ(new_content, received_content);
@@ -226,7 +238,7 @@ TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
         file = toPath(received_file_path.Pass());
         cache_dir = toPath(received_cache_dir_path.Pass());
       });
-  url_response_disk_cache_.WaitForIncomingMethodCall();
+  url_response_disk_cache_.WaitForIncomingResponse();
   ASSERT_FALSE(file.empty());
   ASSERT_TRUE(base::ReadFileToString(file, &received_content));
   EXPECT_EQ(new_content, received_content);
@@ -256,7 +268,7 @@ TEST_F(URLResponseDiskCacheAppTest, CacheTest) {
         file = toPath(received_file_path.Pass());
         cache_dir = toPath(received_cache_dir_path.Pass());
       });
-  url_response_disk_cache_.WaitForIncomingMethodCall();
+  url_response_disk_cache_.WaitForIncomingResponse();
   ASSERT_FALSE(file.empty());
   ASSERT_TRUE(base::ReadFileToString(file, &received_content));
   EXPECT_EQ(new_content, received_content);

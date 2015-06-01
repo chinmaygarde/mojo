@@ -47,15 +47,27 @@ void SkyView::SetDisplayMetrics(const SkyDisplayMetrics& metrics) {
   data_->view_->setDisplayMetrics(display_metrics_);
 }
 
-void SkyView::Load(const WebURL& url) {
+void SkyView::Load(const WebURL& url, mojo::URLResponsePtr response) {
   data_->view_ = View::create(base::Bind(
-      &SkyView::SchedulePaint, weak_factory_.GetWeakPtr()));
+      &SkyView::ScheduleFrame, weak_factory_.GetWeakPtr()));
   data_->view_->setDisplayMetrics(display_metrics_);
 
   dart_controller_.reset(new DartController);
   dart_controller_->CreateIsolateFor(adoptPtr(new DOMDartState(nullptr)), url);
   dart_controller_->InstallView(data_->view_.get());
-  dart_controller_->LoadMainLibrary(url);
+
+  {
+    Dart_Isolate isolate = dart_controller_->dart_state()->isolate();
+    DartIsolateScope scope(isolate);
+    DartApiScope api_scope;
+    client_->DidCreateIsolate(isolate);
+  }
+
+  dart_controller_->LoadMainLibrary(url, response.Pass());
+}
+
+void SkyView::BeginFrame(base::TimeTicks frame_time) {
+  data_->view_->beginFrame(frame_time);
 }
 
 skia::RefPtr<SkPicture> SkyView::Paint() {
@@ -64,34 +76,27 @@ skia::RefPtr<SkPicture> SkyView::Paint() {
   return skia::RefPtr<SkPicture>();
 }
 
-bool SkyView::HandleInputEvent(const WebInputEvent& inputEvent) {
+void SkyView::HandleInputEvent(const WebInputEvent& inputEvent) {
   TRACE_EVENT0("input", "SkyView::HandleInputEvent");
 
   if (WebInputEvent::isPointerEventType(inputEvent.type)) {
       const WebPointerEvent& event = static_cast<const WebPointerEvent&>(inputEvent);
-      return data_->view_->handleInputEvent(PointerEvent::create(event));
-  }
-
-  if (WebInputEvent::isGestureEventType(inputEvent.type)) {
+      data_->view_->handleInputEvent(PointerEvent::create(event));
+  } else if (WebInputEvent::isGestureEventType(inputEvent.type)) {
       const WebGestureEvent& event = static_cast<const WebGestureEvent&>(inputEvent);
-      return data_->view_->handleInputEvent(GestureEvent::create(event));
-  }
-
-  if (WebInputEvent::isKeyboardEventType(inputEvent.type)) {
+      data_->view_->handleInputEvent(GestureEvent::create(event));
+  } else if (WebInputEvent::isKeyboardEventType(inputEvent.type)) {
       const WebKeyboardEvent& event = static_cast<const WebKeyboardEvent&>(inputEvent);
-      return data_->view_->handleInputEvent(KeyboardEvent::create(event));
-  }
-
-  if (WebInputEvent::isWheelEventType(inputEvent.type)) {
+      data_->view_->handleInputEvent(KeyboardEvent::create(event));
+  } else if (WebInputEvent::isWheelEventType(inputEvent.type)) {
       const WebWheelEvent& event = static_cast<const WebWheelEvent&>(inputEvent);
-      return data_->view_->handleInputEvent(WheelEvent::create(event));
+      data_->view_->handleInputEvent(WheelEvent::create(event));
   }
 
-  return false;
 }
 
-void SkyView::SchedulePaint() {
-  client_->SchedulePaint();
+void SkyView::ScheduleFrame() {
+  client_->ScheduleFrame();
 }
 
 } // namespace blink

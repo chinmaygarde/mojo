@@ -67,12 +67,14 @@ void Engine::Init() {
 void Engine::BeginFrame(base::TimeTicks frame_time) {
   TRACE_EVENT0("sky", "Engine::BeginFrame");
 
-  double frame_time_sec = (frame_time - base::TimeTicks()).InSecondsF();
-  double deadline_sec = frame_time_sec;
-  double interval_sec = 1.0 / 60;
-  blink::WebBeginFrameArgs args(frame_time_sec, deadline_sec, interval_sec);
+  if (sky_view_)
+    sky_view_->BeginFrame(frame_time);
 
   if (web_view_) {
+    double frame_time_sec = (frame_time - base::TimeTicks()).InSecondsF();
+    double deadline_sec = frame_time_sec;
+    double interval_sec = 1.0 / 60;
+    blink::WebBeginFrameArgs args(frame_time_sec, deadline_sec, interval_sec);
     web_view_->beginFrame(args);
     web_view_->layout();
   }
@@ -167,13 +169,15 @@ void Engine::OnInputEvent(InputEventPtr event) {
     web_view_->handleInputEvent(*web_event);
 }
 
-void Engine::LoadURL(const mojo::String& url) {
-  // Enable SkyView here.
-  if (false) {
+void Engine::LoadURL(const mojo::String& mojo_url) {
+  GURL url(mojo_url);
+  if (!blink::WebView::shouldUseWebView(url)) {
     sky_view_ = blink::SkyView::Create(this);
-    sky_view_->Load(GURL(url));
+    sky_view_->Load(url);
     return;
   }
+
+  LOG(WARNING) << ".sky support is deprecated, please use .dart for main()";
 
   // Something bad happens if you try to call WebView::close and replace
   // the webview.  So for now we just load into the existing one. :/
@@ -182,7 +186,7 @@ void Engine::LoadURL(const mojo::String& url) {
   ConfigureSettings(web_view_->settings());
   web_view_->setMainFrame(blink::WebLocalFrame::create(this));
   UpdateWebViewSize();
-  web_view_->mainFrame()->load(GURL(url));
+  web_view_->mainFrame()->load(url);
 }
 
 void Engine::frameDetached(blink::WebFrame* frame) {
@@ -203,7 +207,12 @@ void Engine::didCreateIsolate(blink::WebLocalFrame* frame,
                     CreateServiceProvider(config_.service_provider_context));
 }
 
-void Engine::SchedulePaint() {
+void Engine::DidCreateIsolate(Dart_Isolate isolate) {
+  Internals::Create(isolate,
+                    CreateServiceProvider(config_.service_provider_context));
+}
+
+void Engine::ScheduleFrame() {
   animator_->RequestFrame();
 }
 

@@ -66,6 +66,7 @@ from webkitpy.layout_tests.port import server_process
 from webkitpy.layout_tests.port.factory import PortFactory
 from webkitpy.layout_tests.servers import apache_http
 from webkitpy.layout_tests.servers import pywebsocket
+from skypy.skyserver import SkyServer
 
 _log = logging.getLogger(__name__)
 
@@ -230,7 +231,7 @@ class Port(object):
             return [
                 '--args-for=mojo:native_viewport_service --use-headless-config --use-osmesa',
                 '--args-for=mojo:sky_viewer --testing',
-                '--content-handlers=text/sky,mojo:sky_viewer',
+                '--content-handlers=text/sky,mojo:sky_viewer,text/plain,mojo:sky_viewer',
                 '--url-mappings=mojo:window_manager=mojo:sky_tester,mojo:surfaces_service=mojo:fake_surfaces_service',
                 'mojo:window_manager',
             ]
@@ -725,7 +726,7 @@ class Port(object):
         return [self.relative_test_filename(f) for f in files]
 
     # When collecting test cases, we include any file with these extensions.
-    _supported_file_extensions = set(['.sky'])
+    _supported_file_extensions = set(['.sky', '.dart'])
 
     @staticmethod
     # If any changes are made here be sure to update the isUsedInReftest method in old-run-webkit-tests as well.
@@ -1093,8 +1094,8 @@ class Port(object):
         return self._build_path('gen/dart-pkg/packages')
 
     def server_command_line(self):
-        path = (self._options.path_to_server or
-            self.path_from_chromium_base('out', 'downloads', 'sky_server'))
+        # TODO(eseidel): Shouldn't this just use skyserver.py?
+        path = (self._options.path_to_server or SkyServer.sky_server_path())
         return [
             path,
             '-t', self.get_option('configuration'),
@@ -1108,7 +1109,6 @@ class Port(object):
 
         Ports can stub this out if they don't need a web server to be running."""
         assert not self._http_server, 'Already running an http server.'
-        subprocess.call(self.path_to_script('download_sky_server'))
         self._http_server = subprocess.Popen(self.server_command_line())
 
     def start_websocket_server(self):

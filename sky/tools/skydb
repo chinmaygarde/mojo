@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import urlparse
+import platform
 
 SUPPORTED_MIME_TYPES = [
     'text/html',
@@ -36,11 +37,13 @@ ANDROID_APK_NAME = 'MojoShell.apk'
 
 PID_FILE_PATH = "/tmp/skydb.pids"
 CACHE_LINKS_PATH = '/tmp/mojo_cache_links'
-SYSTEM_LIBS_ROOT_PATH = '/tmp/device_libs'
 
 SRC_ROOT = skypy.paths.Paths('ignored').src_root
 ADB_PATH = os.path.join(SRC_ROOT,
     'third_party/android_tools/sdk/platform-tools/adb')
+
+# TODO(iansf): Fix undefined behavior when you have more than one device attached.
+SYSTEM_LIBS_ROOT_PATH = '/tmp/device_libs/%s' % (subprocess.check_output([ADB_PATH, 'get-serialno']).strip())
 
 
 # FIXME: Move this into mopy.config
@@ -116,8 +119,8 @@ class SkyDebugger(object):
             '--v=1',
             '--content-handlers=%s' % ','.join(content_handlers),
             '--url-mappings=mojo:window_manager=mojo:kiosk_wm',
-            '--args-for=mojo:sky_debugger %d' % remote_command_port,
-            'mojo:sky_debugger',
+            '--args-for=mojo:debugger %d' % remote_command_port,
+            'mojo:debugger',
         ]
 
         if args.url_or_path:
@@ -531,9 +534,14 @@ class SkyDebugger(object):
             symbol_search_paths = system_lib_dirs + symbol_search_paths
 
             # TODO(eseidel): We need to look up the toolchain somehow?
-            gdb_path = os.path.join(SRC_ROOT, 'third_party/android_tools/ndk/'
-                'toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/'
-                'bin/arm-linux-androideabi-gdb')
+            if platform.system() == 'Darwin':
+                gdb_path = os.path.join(SRC_ROOT, 'third_party/android_tools/ndk/'
+                    'toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/'
+                    'bin/arm-linux-androideabi-gdb')
+            else:
+                gdb_path = os.path.join(SRC_ROOT, 'third_party/android_tools/ndk/'
+                    'toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/'
+                    'bin/arm-linux-androideabi-gdb')
 
         # Set solib-search-path after letting android modify symbol_search_paths
         eval_commands.append(

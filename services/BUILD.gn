@@ -4,9 +4,10 @@
 
 group("services") {
   deps = [
+    "//services/authenticating_url_loader",
     "//services/clipboard",
-    "//services/console",
     "//services/dart",
+    "//services/debugger",
     "//services/device_info",
     "//services/fake_surfaces",
     "//services/files",

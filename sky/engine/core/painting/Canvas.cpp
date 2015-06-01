@@ -3,23 +3,17 @@
 // found in the LICENSE file.
 
 #include "sky/engine/config.h"
-#include "sky/engine/core/painting/PictureRecorder.h"
+#include "sky/engine/core/painting/Canvas.h"
 
 #include "sky/engine/core/dom/Document.h"
 #include "sky/engine/core/dom/Element.h"
+#include "sky/engine/core/painting/CanvasImage.h"
 #include "sky/engine/core/painting/PaintingTasks.h"
 #include "sky/engine/platform/geometry/IntRect.h"
 #include "third_party/skia/include/core/SkCanvas.h"
+#include "third_party/skia/include/core/SkBitmap.h"
 
 namespace blink {
-
-SkRect toSkRect(const Vector<float>& rect)
-{
-    ASSERT(rect.size() == 4);
-    SkRect sk_rect;
-    sk_rect.set(rect[0], rect[1], rect[2], rect[3]);
-    return sk_rect;
-}
 
 Canvas::Canvas(const FloatSize& size)
     : m_size(size)
@@ -40,15 +34,12 @@ void Canvas::save()
     m_canvas->save();
 }
 
-void Canvas::saveLayer(const Vector<float>& bounds, const Paint* paint)
+void Canvas::saveLayer(const Rect& bounds, const Paint* paint)
 {
     if (!m_canvas)
         return;
     ASSERT(m_displayList->isRecording());
-    SkRect sk_bounds;
-    if (!bounds.isEmpty())
-      sk_bounds = toSkRect(bounds);
-    m_canvas->saveLayer(!bounds.isEmpty() ? &sk_bounds : nullptr,
+    m_canvas->saveLayer(!bounds.is_null ? &bounds.sk_rect : nullptr,
                         paint ? &paint->paint() : nullptr);
 }
 
@@ -103,12 +94,12 @@ void Canvas::concat(const Vector<float>& matrix)
     m_canvas->concat(sk_matrix);
 }
 
-void Canvas::clipRect(const Vector<float>& rect)
+void Canvas::clipRect(const Rect& rect)
 {
     if (!m_canvas)
         return;
     ASSERT(m_displayList->isRecording());
-    m_canvas->clipRect(toSkRect(rect));
+    m_canvas->clipRect(rect.sk_rect);
 }
 
 void Canvas::drawPicture(Picture* picture)
@@ -129,22 +120,22 @@ void Canvas::drawPaint(const Paint* paint)
     m_canvas->drawPaint(paint->paint());
 }
 
-void Canvas::drawRect(const Vector<float>& rect, const Paint* paint)
+void Canvas::drawRect(const Rect& rect, const Paint* paint)
 {
     if (!m_canvas)
         return;
     ASSERT(paint);
     ASSERT(m_displayList->isRecording());
-    m_canvas->drawRect(toSkRect(rect), paint->paint());
+    m_canvas->drawRect(rect.sk_rect, paint->paint());
 }
 
-void Canvas::drawOval(const Vector<float>& rect, const Paint* paint)
+void Canvas::drawOval(const Rect& rect, const Paint* paint)
 {
     if (!m_canvas)
         return;
     ASSERT(paint);
     ASSERT(m_displayList->isRecording());
-    m_canvas->drawOval(toSkRect(rect), paint->paint());
+    m_canvas->drawOval(rect.sk_rect, paint->paint());
 }
 
 void Canvas::drawCircle(float x, float y, float radius, const Paint* paint)
@@ -154,6 +145,27 @@ void Canvas::drawCircle(float x, float y, float radius, const Paint* paint)
     ASSERT(paint);
     ASSERT(m_displayList->isRecording());
     m_canvas->drawCircle(x, y, radius, paint->paint());
+}
+
+void Canvas::drawPath(const CanvasPath* path, const Paint* paint)
+{
+    if (!m_canvas)
+        return;
+    ASSERT(path);
+    ASSERT(paint);
+    ASSERT(m_displayList->isRecording());
+    m_canvas->drawPath(path->path(), paint->paint());
+}
+
+void Canvas::drawImage(const CanvasImage* image,
+                       float x,
+                       float y,
+                       const Paint* paint) {
+  if (!m_canvas)
+    return;
+  ASSERT(image);
+  ASSERT(m_displayList->isRecording());
+  m_canvas->drawBitmap(image->bitmap(), x, y, &paint->paint());
 }
 
 PassRefPtr<DisplayList> Canvas::finishRecording()

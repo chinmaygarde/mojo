@@ -36,7 +36,7 @@ source_set("bindings") {
   deps = [
     "//base",
     "//dart/runtime/bin:embedded_dart_io",
-    "//dart/runtime/bin:libdart_withcore",
+    "//dart/runtime:libdart",
     "//mojo/public/c/system",
     "//mojo/public/cpp/system",
     "//sky/engine/core:prerequisites",
@@ -61,10 +61,10 @@ action("generate_snapshot_bin") {
   inputs = [
     "//dart/runtime/tools/create_snapshot_bin.py",
     "//sky/engine/bindings/builtin.dart",
-    "//mojo/public/dart/lib/internal.dart",
-    "//mojo/public/dart/lib/src/handle_watcher.dart",
-    "//mojo/public/dart/lib/src/natives.dart",
-    "//mojo/public/dart/lib/src/timer_queue.dart",
+    "//mojo/public/dart/sdk_ext/internal.dart",
+    "//mojo/public/dart/sdk_ext/src/handle_watcher.dart",
+    "//mojo/public/dart/sdk_ext/src/natives.dart",
+    "//mojo/public/dart/sdk_ext/src/timer_queue.dart",
     "snapshot.dart",
   ]
   vm_isolate_snapshot = "$target_gen_dir/vm_isolate_snapshot.bin"
@@ -76,7 +76,7 @@ action("generate_snapshot_bin") {
 
   builtin_path = rebase_path("//sky/engine/bindings/builtin.dart")
   dart_sky_path = rebase_path("$bindings_output_dir/dart_sky.dart")
-  internal_path = rebase_path("//mojo/public/dart/lib/internal.dart")
+  internal_path = rebase_path("//mojo/public/dart/sdk_ext/internal.dart")
 
   gen_snapshot_dir =
       get_label_info("//dart/runtime/bin:gen_snapshot($host_toolchain)",
@@ -331,8 +331,15 @@ action("generate_dart_globals") {
   ]
 }
 
+copy("copy_core_dart_files") {
+  sources = core_dart_files
+  outputs = [
+    "$bindings_output_dir/{{source_file_part}}",
+  ]
+}
+
 action("generate_dart_sky") {
-  sources = core_idl_files
+  sources = core_idl_files + core_dart_files
   script = "$bindings_scripts_dir/compiler.py"
 
   file_list = "$target_gen_dir/${target_name}_file_list.txt"
@@ -355,6 +362,7 @@ action("generate_dart_sky") {
   ]
 
   deps = [
+    ":copy_core_dart_files",
     ":compile_idls",
   ]
 }
@@ -362,7 +370,8 @@ action("generate_dart_sky") {
 source_set("generated_bindings") {
   deps = [
     "//base",
-    "//dart/runtime/bin:libdart_withcore",
+    "//dart/runtime:libdart",
+    "//dart/runtime/vm:libdart_platform",
     "//gpu/command_buffer/client:gles2_c_lib",
     "//mojo/application",
     "//mojo/common",

@@ -37,9 +37,9 @@ class Config(object):
   TEST_TYPE_PERF = "perf"
   TEST_TYPE_INTEGRATION = "integration"
 
-  def __init__(self, target_os=None, target_cpu=None, is_simulator=False,
-               is_debug=True, is_clang=None, sanitizer=None,
-               dcheck_always_on=False, **kwargs):
+  def __init__(self, target_os=None, target_cpu=None, is_debug=True,
+               is_clang=None, sanitizer=None, dcheck_always_on=False,
+               is_simulator=False, is_official_build=False, **kwargs):
     """Constructs a Config with key-value pairs specified via keyword arguments.
     If target_os is not specified, it will be set to the host OS."""
 
@@ -49,6 +49,7 @@ class Config(object):
     assert target_cpu in (None, Config.ARCH_X86, Config.ARCH_X64,
                            Config.ARCH_ARM)
     assert isinstance(is_debug, bool)
+    assert isinstance(is_official_build, bool)
     assert is_clang is None or isinstance(is_clang, bool)
     assert sanitizer in (None, Config.SANITIZER_ASAN)
     if "test_types" in kwargs:
@@ -72,6 +73,7 @@ class Config(object):
     self.values["target_cpu"] = target_cpu
     self.values["is_simulator"] = is_simulator
     self.values["is_debug"] = is_debug
+    self.values["is_official_build"] = is_official_build
     self.values["is_clang"] = is_clang
     self.values["sanitizer"] = sanitizer
     self.values["dcheck_always_on"] = dcheck_always_on
@@ -122,6 +124,11 @@ class Config(object):
   def is_debug(self):
     """Is Debug build?"""
     return self.values["is_debug"]
+
+  @property
+  def is_official_build(self):
+    """Is Official build?"""
+    return self.values["is_official_build"]
 
   @property
   def dcheck_always_on(self):

@@ -264,7 +264,6 @@ void FrameView::layout(bool allowSubtree)
     // We should never layout a Document which is not in a LocalFrame.
     ASSERT(m_frame);
     ASSERT(m_frame->view() == this);
-    ASSERT(m_frame->page());
 
     ScriptForbiddenScope forbidScript;
 
@@ -317,7 +316,7 @@ void FrameView::layout(bool allowSubtree)
                 m_lastViewportSize = layoutSize();
             }
 
-            m_size = LayoutSize(layoutSize().width(), layoutSize().height());
+            m_size = LayoutSize(layoutSize());
         }
 
         layer = rootForThisLayout->enclosingLayer();

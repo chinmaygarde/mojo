@@ -43,6 +43,12 @@ union HandleUnion {
   SmallCache f_small_cache;
 };
 
+struct WrapperStruct {
+  ObjectUnion? object_union;
+  PodUnion? pod_union;
+  HandleUnion? handle_union;
+};
+
 struct HandleStruct {
   SmallCache f_small_cache;
 };
@@ -55,8 +61,10 @@ struct SmallStruct {
   DummyStruct? dummy_struct;
   PodUnion? pod_union;
   array<PodUnion>? pod_union_array;
+  array<PodUnion?>? nullable_pod_union_array;
   array<DummyStruct>? s_array;
   map<string, PodUnion>? pod_union_map;
+  map<string, PodUnion?>? nullable_pod_union_map;
 };
 
 struct SmallStructNonNullableUnion {

@@ -133,6 +133,13 @@ class KeyboardDelegate : public mojo::ApplicationDelegate,
 
   void DeleteSurroundingText(int32_t before_length,
                              int32_t after_length) override {
+    // treat negative and zero |before_length| values as no-op.
+    if (before_length > 0) {
+      if (before_length > static_cast<int32_t>(text_[1].size())) {
+        before_length = text_[1].size();
+      }
+      text_[1].erase(text_[1].end() - before_length, text_[1].end());
+    }
     DrawText();
   }
 
@@ -149,6 +156,8 @@ class KeyboardDelegate : public mojo::ApplicationDelegate,
   void OnSurfaceIdAvailable(mojo::SurfaceIdPtr surface_id) override {
     text_view_->SetSurfaceId(surface_id.Pass());
   }
+
+  void OnFrameComplete() override {}
 
   // mojo::ViewObserver implementation.
   void OnViewDestroyed(mojo::View* view) override {

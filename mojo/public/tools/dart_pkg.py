@@ -105,6 +105,39 @@ def copy_or_link(from_root, to_root, filter_func=None):
         copy(from_root, to_root, filter_func)
 
 
+def list_files(from_root, filter_func=None):
+    file_list = []
+    for root, dirs, files in os.walk(from_root):
+        # filter_func expects paths not names, so wrap it to make them absolute.
+        wrapped_filter = None
+        if filter_func:
+            wrapped_filter = lambda name: filter_func(os.path.join(root, name))
+        for name in filter(wrapped_filter, files):
+            path = os.path.join(root, name)
+            file_list.append(path)
+        dirs[:] = filter(wrapped_filter, dirs)
+    return file_list
+
+
+def remove_broken_symlink(path):
+    try:
+        link_path = os.readlink(path)
+    except OSError as e:
+        # Path was not a symlink.
+        if e.errno == errno.EINVAL:
+            pass
+    else:
+        if not os.path.exists(link_path):
+            os.unlink(path)
+
+
+def remove_broken_symlinks(root_dir):
+    for current_dir, _, child_files in os.walk(root_dir):
+        for filename in child_files:
+            path = os.path.join(current_dir, filename)
+            remove_broken_symlink(path)
+
+
 def mojom_path(filename):
     with open(filename) as f:
         source = f.read()
@@ -149,6 +182,11 @@ def main():
                         help='.mojom and .mojom.dart sources',
                         nargs='*',
                         default=[])
+    parser.add_argument('--sdk-ext-directories',
+                        metavar='sdk_ext_directories',
+                        help='Directory containing .dart sources',
+                        nargs='*',
+                        default=[])
     args = parser.parse_args()
 
     # We must have a pubspec.yaml.
@@ -161,6 +199,16 @@ def main():
         relative_source = os.path.relpath(source, common_source_prefix)
         target = os.path.join(target_dir, relative_source)
         copy_or_link(source, target)
+
+    # Copy sdk-ext sources into pkg directory
+    sdk_ext_dir = os.path.join(target_dir, 'sdk_ext')
+    for directory in args.sdk_ext_directories:
+        sdk_ext_sources = list_files(directory, dart_filter)
+        common_prefix = os.path.commonprefix(sdk_ext_sources)
+        for source in sdk_ext_sources:
+            relative_source = os.path.relpath(source, common_prefix)
+            target = os.path.join(sdk_ext_dir, relative_source)
+            copy_or_link(source, target)
 
     lib_path = os.path.join(target_dir, "lib")
     lib_mojom_path = os.path.join(lib_path, "mojom")
@@ -181,6 +229,10 @@ def main():
     # Symlink packages/
     package_path = os.path.join(args.package_root, args.package_name)
     link(lib_path, package_path)
+
+    # Remove any broken symlinks in target_dir and package root.
+    remove_broken_symlinks(target_dir)
+    remove_broken_symlinks(args.package_root)
 
     # Write stamp file.
     with open(args.stamp_file, 'w'):

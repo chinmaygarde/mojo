@@ -6,11 +6,21 @@ import("//mojo/public/mojo_application.gni")
 
 mojo_native_application("keyboard_native") {
   sources = [
+    "animation.h",
+    "clip_animation.cc",
+    "clip_animation.h",
+    "fast_out_slow_in_interpolator.cc",
+    "fast_out_slow_in_interpolator.h",
     "key_layout.cc",
     "key_layout.h",
     "keyboard_service_impl.cc",
     "keyboard_service_impl.h",
     "main.cc",
+    "material_splash_animation.cc",
+    "material_splash_animation.h",
+    "motion_decay_animation.cc",
+    "motion_decay_animation.h",
+    "time_interpolator.h",
     "view_observer_delegate.cc",
     "view_observer_delegate.h",
   ]
@@ -22,6 +32,7 @@ mojo_native_application("keyboard_native") {
     "//mojo/gpu",
     "//mojo/public/c/gles2",
     "//mojo/public/cpp/bindings:callback",
+    "//mojo/public/cpp/utility",
     "//mojo/public/interfaces/application",
     "//mojo/services/geometry/public/cpp",
     "//mojo/services/geometry/public/interfaces",

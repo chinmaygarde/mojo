@@ -5,8 +5,10 @@
 #ifndef SKY_ENGINE_CORE_PAINTING_CANVAS_H_
 #define SKY_ENGINE_CORE_PAINTING_CANVAS_H_
 
+#include "sky/engine/core/painting/CanvasPath.h"
 #include "sky/engine/core/painting/Paint.h"
 #include "sky/engine/core/painting/Picture.h"
+#include "sky/engine/core/painting/Rect.h"
 #include "sky/engine/platform/graphics/DisplayList.h"
 #include "sky/engine/tonic/dart_wrappable.h"
 #include "sky/engine/wtf/PassRefPtr.h"
@@ -14,6 +16,7 @@
 
 namespace blink {
 class Element;
+class CanvasImage;
 
 class Canvas : public RefCounted<Canvas>, public DartWrappable {
     DEFINE_WRAPPERTYPEINFO();
@@ -27,7 +30,7 @@ public:
     float height() const { return m_size.height(); }
 
     void save();
-    void saveLayer(const Vector<float>& bounds, const Paint* paint);
+    void saveLayer(const Rect& bounds, const Paint* paint);
     void restore();
 
     void translate(float dx, float dy);
@@ -36,13 +39,18 @@ public:
     void skew(float sx, float sy);
     void concat(const Vector<float>& matrix);
 
-    void clipRect(const Vector<float>& rect);
+    void clipRect(const Rect& rect);
 
     void drawPicture(Picture* picture);
     void drawPaint(const Paint* paint);
-    void drawRect(const Vector<float>& rect, const Paint* paint);
-    void drawOval(const Vector<float>& rect, const Paint* paint);
+    void drawRect(const Rect& rect, const Paint* paint);
+    void drawOval(const Rect& rect, const Paint* paint);
     void drawCircle(float x, float y, float radius, const Paint* paint);
+    void drawPath(const CanvasPath* path, const Paint* paint);
+    void drawImage(const CanvasImage* image,
+                   float x,
+                   float y,
+                   const Paint* paint);
 
     SkCanvas* skCanvas() { return m_canvas; }
 

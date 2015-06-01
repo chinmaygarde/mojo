@@ -68,6 +68,10 @@ void KeyLayout::SetTextCallback(
   on_text_callback_ = on_text_callback;
 }
 
+void KeyLayout::SetDeleteCallback(base::Callback<void()> on_delete_callback) {
+  on_delete_callback_ = on_delete_callback;
+}
+
 void KeyLayout::SetSize(const mojo::Size& size) {
   size_ = size;
 }
@@ -85,22 +89,9 @@ void KeyLayout::Draw(SkCanvas* canvas) {
   text_paint.setAntiAlias(true);
   text_paint.setTextAlign(SkPaint::kCenter_Align);
 
-  canvas->clear(SK_ColorRED);
+  canvas->clear(SK_ColorLTGRAY);
 
   SkPaint paint;
-
-  static const int kRowColors[] = {
-      SK_ColorGREEN, SK_ColorYELLOW, SK_ColorMAGENTA, SK_ColorCYAN,
-  };
-  for (size_t i = 0; i < layout_->size(); i++) {
-    paint.setColor(kRowColors[i % arraysize(kRowColors)]);
-    SkRect rect =
-        SkRect::MakeLTRB(0, i * row_height, size_.width, (i + 1) * row_height);
-    canvas->drawRect(rect, paint);
-  }
-
-  static const int kKeyColors[] = {SK_ColorLTGRAY, SK_ColorDKGRAY};
-  static const int kKeyInset = 2;
   for (size_t row_index = 0; row_index < layout_->size(); row_index++) {
     float current_top = row_index * row_height;
     float current_left = 0;
@@ -108,15 +99,6 @@ void KeyLayout::Draw(SkCanvas* canvas) {
          key_index++) {
       float key_width =
           static_cast<float>(size_.width) * (*layout_)[row_index][key_index];
-
-      int keyColor =
-          kKeyColors[(row_index + key_index) % arraysize(kKeyColors)];
-      paint.setColor(keyColor);
-      SkRect rect =
-          SkRect::MakeLTRB(current_left, current_top, current_left + key_width,
-                           current_top + row_height);
-      rect.inset(kKeyInset, kKeyInset);
-      canvas->drawRect(rect, paint);
 
       (*key_map_)[row_index][key_index]->Draw(
           canvas, text_paint,
@@ -182,6 +164,10 @@ void KeyLayout::OnKeyEmitText(const TextKey& key) {
   on_text_callback_.Run(std::string(key.ToText()));
 }
 
+void KeyLayout::OnKeyDelete(const TextKey& key) {
+  on_delete_callback_.Run();
+}
+
 void KeyLayout::OnKeySwitchToUpperCase(const TextKey& key) {
   layout_ = &letters_layout_;
   key_map_ = &upper_case_key_map_;
@@ -202,6 +188,8 @@ void KeyLayout::InitKeyMaps() {
       base::Bind(&KeyLayout::OnKeyDoNothing, weak_factory_.GetWeakPtr());
   base::Callback<void(const TextKey&)> emit_text_callback =
       base::Bind(&KeyLayout::OnKeyEmitText, weak_factory_.GetWeakPtr());
+  base::Callback<void(const TextKey&)> delete_callback =
+      base::Bind(&KeyLayout::OnKeyDelete, weak_factory_.GetWeakPtr());
   base::Callback<void(const TextKey&)> switch_to_upper_case_callback =
       base::Bind(&KeyLayout::OnKeySwitchToUpperCase,
                  weak_factory_.GetWeakPtr());
@@ -240,10 +228,10 @@ void KeyLayout::InitKeyMaps() {
       new TextKey("x", emit_text_callback),
       new TextKey("c", emit_text_callback),
       new TextKey("v", emit_text_callback),
-      new TextKey("r", emit_text_callback),
+      new TextKey("b", emit_text_callback),
       new TextKey("n", emit_text_callback),
       new TextKey("m", emit_text_callback),
-      new TextKey("del", do_nothing_callback)};
+      new TextKey("del", delete_callback)};
 
   std::vector<Key*> lower_case_key_map_row_four = {
       new TextKey("sym", switch_to_symbols_callback),
@@ -286,10 +274,10 @@ void KeyLayout::InitKeyMaps() {
       new TextKey("X", emit_text_callback),
       new TextKey("C", emit_text_callback),
       new TextKey("V", emit_text_callback),
-      new TextKey("R", emit_text_callback),
+      new TextKey("B", emit_text_callback),
       new TextKey("N", emit_text_callback),
       new TextKey("M", emit_text_callback),
-      new TextKey("DEL", do_nothing_callback)};
+      new TextKey("DEL", delete_callback)};
 
   std::vector<Key*> upper_case_key_map_row_four = {
       new TextKey("SYM", switch_to_symbols_callback),
@@ -335,7 +323,7 @@ void KeyLayout::InitKeyMaps() {
       new TextKey(";", emit_text_callback),
       new TextKey("!", emit_text_callback),
       new TextKey("?", emit_text_callback),
-      new TextKey("del", do_nothing_callback)};
+      new TextKey("del", delete_callback)};
 
   std::vector<Key*> symbols_key_map_row_four = {
       new TextKey("ABC", switch_to_lower_case_callback),

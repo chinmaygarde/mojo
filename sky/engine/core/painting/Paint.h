@@ -12,6 +12,9 @@
 
 namespace blink {
 
+class DrawLooper;
+class ColorFilter;
+
 class Paint : public RefCounted<Paint>, public DartWrappable {
     DEFINE_WRAPPERTYPEINFO();
 public:
@@ -31,8 +34,11 @@ public:
     {
         m_paint.setARGB(a, r, g, b);
     }
+    void setDrawLooper(DrawLooper* looper);
+    void setColorFilter(ColorFilter* filter);
 
     const SkPaint& paint() const { return m_paint; }
+    void setPaint(const SkPaint& paint) { m_paint = paint; }
 
 private:
     Paint();

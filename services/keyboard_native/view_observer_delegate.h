@@ -5,17 +5,24 @@
 #ifndef SERVICES_KEYBOARD_NATIVE_VIEW_OBSERVER_DELEGATE_H_
 #define SERVICES_KEYBOARD_NATIVE_VIEW_OBSERVER_DELEGATE_H_
 
-#include <memory>
-
+#include "base/time/time.h"
 #include "mojo/gpu/texture_uploader.h"
 #include "mojo/services/view_manager/public/cpp/view_observer.h"
 #include "mojo/skia/ganesh_context.h"
 #include "services/keyboard_native/key_layout.h"
+#include "services/keyboard_native/material_splash_animation.h"
+#include "services/keyboard_native/motion_decay_animation.h"
 #include "ui/gfx/geometry/point.h"
 
 namespace keyboard {
 
 class KeyboardServiceImpl;
+
+struct PointerState {
+  KeyLayout::Key* last_key;
+  gfx::Point last_point;
+  bool last_point_valid;
+};
 
 class ViewObserverDelegate : public mojo::ViewObserver,
                              public mojo::TextureUploader::Client {
@@ -27,17 +34,17 @@ class ViewObserverDelegate : public mojo::ViewObserver,
 
  private:
   void OnText(const std::string& text);
-  void DrawKeys(const mojo::Size& size);
+  void OnDelete();
+  void DrawState();
   void DrawKeysToCanvas(const mojo::Size& size, SkCanvas* canvas);
-  void DrawMovePointTrail(SkCanvas* canvas);
-  void DrawFloatingKey(SkCanvas* canvas,
-                       const mojo::Size& size,
-                       float current_touch_x,
-                       float current_touch_y);
-  void UpdateMovePoints(mojo::Size size, const mojo::EventPtr& event);
+  void DrawAnimations(SkCanvas* canvas, const base::TimeTicks& current_ticks);
+  void DrawFloatingKey(SkCanvas* canvas, const mojo::Size& size);
+  void UpdateState(int32 pointer_id, int action, const gfx::Point& touch_point);
+  void IssueDraw();
 
   // mojo::TextureUploader::Client implementation.
   void OnSurfaceIdAvailable(mojo::SurfaceIdPtr surface_id) override;
+  void OnFrameComplete() override;
 
   // mojo::ViewObserver implementation.
   void OnViewDestroyed(mojo::View* view) override;
@@ -49,12 +56,15 @@ class ViewObserverDelegate : public mojo::ViewObserver,
   KeyboardServiceImpl* keyboard_service_impl_;
   mojo::View* view_;
   base::WeakPtr<mojo::GLContext> gl_context_;
-  std::unique_ptr<mojo::GaneshContext> gr_context_;
-  std::unique_ptr<mojo::TextureUploader> texture_uploader_;
-  std::deque<gfx::Point> move_points_;
-  int last_action_;
+  scoped_ptr<mojo::GaneshContext> gr_context_;
+  scoped_ptr<mojo::TextureUploader> texture_uploader_;
+  scoped_ptr<Animation> clip_animation_;
+  std::deque<scoped_ptr<Animation>> animations_;
   KeyLayout key_layout_;
-  KeyLayout::Key* last_key_;
+  std::vector<int32> active_pointer_ids_;
+  std::map<int32, scoped_ptr<PointerState>> active_pointer_state_;
+  bool needs_draw_;
+  bool frame_pending_;
   base::WeakPtrFactory<ViewObserverDelegate> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(ViewObserverDelegate);
