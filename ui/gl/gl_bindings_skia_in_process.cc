@@ -637,7 +637,11 @@ GrGLInterface* CreateInProcessSkiaGLBinding() {
       return NULL;
     case gfx::kGLImplementationDesktopGL:
     case gfx::kGLImplementationAppleGL:
+#if TARGET_OS_IPHONE
+      standard = kGLES_GrGLStandard;
+#else
       standard = kGL_GrGLStandard;
+#endif
       break;
     case gfx::kGLImplementationOSMesaGL:
       standard = kGL_GrGLStandard;
