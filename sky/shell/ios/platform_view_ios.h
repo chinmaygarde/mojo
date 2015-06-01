@@ -7,8 +7,6 @@
 
 #include "sky/shell/platform_view.h"
 
-struct ANativeWindow;
-
 namespace sky {
 namespace shell {
 

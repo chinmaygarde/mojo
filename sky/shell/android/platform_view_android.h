@@ -2,35 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SKY_SHELL_SKY_VIEW_H_
-#define SKY_SHELL_SKY_VIEW_H_
+#ifndef SKY_SHELL_PLATFORM_VIEW_ANDROID_H_
+#define SKY_SHELL_PLATFORM_VIEW_ANDROID_H_
 
-#include "base/android/jni_weak_ref.h"
-#include "base/android/scoped_java_ref.h"
-#include "base/macros.h"
-#include "base/memory/weak_ptr.h"
-#include "base/single_thread_task_runner.h"
-#include "sky/shell/ui_delegate.h"
+#include "sky/shell/platform_view.h"
 
 struct ANativeWindow;
 
 namespace sky {
 namespace shell {
 
-class PlatformView {
+class PlatformViewAndroid : public PlatformView {
  public:
-  struct Config {
-    base::WeakPtr<UIDelegate> ui_delegate;
-    scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner;
-  };
-
   static bool Register(JNIEnv* env);
-
-  explicit PlatformView(const Config& config);
-  ~PlatformView();
-
-  void ConnectToViewportObserver(
-      mojo::InterfaceRequest<ViewportObserver> request);
 
   // Called from Java
   void Detach(JNIEnv* env, jobject obj);
@@ -45,13 +29,12 @@ class PlatformView {
  private:
   void ReleaseWindow();
 
-  Config config_;
   ANativeWindow* window_;
 
-  DISALLOW_COPY_AND_ASSIGN(PlatformView);
+  DISALLOW_COPY_AND_ASSIGN(PlatformViewAndroid);
 };
 
 }  // namespace shell
 }  // namespace sky
 
-#endif  // SKY_SHELL_SKY_VIEW_H_
+#endif  // SKY_SHELL_PLATFORM_VIEW_ANDROID_H_

@@ -29,21 +29,9 @@ bool PlatformView::Register(JNIEnv* env) {
   return RegisterNativesImpl(env);
 }
 
-PlatformView::PlatformView(const Config& config)
-    : config_(config), window_(nullptr) {
-}
-
 PlatformView::~PlatformView() {
   if (window_)
     ReleaseWindow();
-}
-
-void PlatformView::ConnectToViewportObserver(
-    mojo::InterfaceRequest<ViewportObserver> request) {
-  config_.ui_task_runner->PostTask(
-      FROM_HERE,
-      base::Bind(&UIDelegate::ConnectToViewportObserver, config_.ui_delegate,
-                 base::Passed(&request)));
 }
 
 void PlatformView::Detach(JNIEnv* env, jobject obj) {
@@ -59,16 +47,12 @@ void PlatformView::SurfaceCreated(JNIEnv* env, jobject obj, jobject jsurface) {
     base::android::ScopedJavaLocalFrame scoped_local_reference_frame(env);
     window_ = ANativeWindow_fromSurface(env, jsurface);
   }
-  config_.ui_task_runner->PostTask(
-      FROM_HERE, base::Bind(&UIDelegate::OnAcceleratedWidgetAvailable,
-                            config_.ui_delegate, window_));
+  SurfaceWasCreated();
 }
 
 void PlatformView::SurfaceDestroyed(JNIEnv* env, jobject obj) {
   DCHECK(window_);
-  config_.ui_task_runner->PostTask(
-      FROM_HERE,
-      base::Bind(&UIDelegate::OnOutputSurfaceDestroyed, config_.ui_delegate));
+  SurfaceWasDestroyed();
   ReleaseWindow();
 }
 
