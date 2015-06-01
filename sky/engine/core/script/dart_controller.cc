@@ -46,6 +46,9 @@ static const char* kCheckedModeArgs[] = {
   "--enable_type_checks",
   "--error_on_bad_type",
   "--error_on_bad_override",
+#if WTF_OS_IOS
+  "--no-profile"
+#endif
 };
 #endif
 
