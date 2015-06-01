@@ -35,6 +35,7 @@ class GPU_EXPORT GPUTestConfig {
     kOsLinux = 1 << 9,
     kOsChromeOS = 1 << 10,
     kOsAndroid = 1 << 11,
+    kOsiOS = 1 << 12,
   };
 
   enum BuildType {
