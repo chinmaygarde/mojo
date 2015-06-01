@@ -361,7 +361,6 @@ config("default_libs") {
       "CoreGraphics.framework",
       "CoreText.framework",
       "Foundation.framework",
-      "UIKit.framework",
     ]
   } else if (is_linux) {
     libs = [ "dl" ]
