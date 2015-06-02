@@ -47,14 +47,26 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
 -(void) layoutSubviews {
   [super layoutSubviews];
 
+  [self configureLayerDefaults];
+
   [self setupPlatformViewIfNecessary];
 
   CGSize size = self.bounds.size;
   CGFloat scale = [UIScreen mainScreen].scale;
 
-  _viewport_observer->OnViewportMetricsChanged(size.width,
-                                               size.height,
+  _viewport_observer->OnViewportMetricsChanged(size.width * scale,
+                                               size.height * scale,
                                                scale);
+}
+
+-(void) configureLayerDefaults {
+  CAEAGLLayer *layer = reinterpret_cast<CAEAGLLayer *>(self.layer);
+  layer.allowsGroupOpacity = YES;
+  layer.opaque = YES;
+  CGFloat screenScale = [UIScreen mainScreen].scale;
+  layer.contentsScale = screenScale;
+  // Note: shouldRasterize is still NO. This is just a defensive measure
+  layer.rasterizationScale = screenScale;
 }
 
 -(void) setupPlatformViewIfNecessary {
