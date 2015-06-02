@@ -45,6 +45,13 @@ void NetworkServiceImpl::CreateUDPSocket(
   DCHECK(false);
 }
 
+void NetworkServiceImpl::CreateHttpServer(
+                        mojo::NetAddressPtr local_address,
+                        mojo::HttpServerDelegatePtr delegate,
+                        const CreateHttpServerCallback& callback) {
+  DCHECK(false);
+}
+
 void NetworkServiceFactory::Create(ApplicationConnection* connection,
                                    InterfaceRequest<NetworkService> request) {
   new NetworkServiceImpl(request.Pass());

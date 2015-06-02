@@ -28,7 +28,9 @@ class NetworkServiceImpl : public NetworkService {
                 mojo::InterfaceRequest<mojo::TCPConnectedSocket> client_socket,
                 const CreateTCPConnectedSocketCallback& callback) override;
   void CreateUDPSocket(mojo::InterfaceRequest<mojo::UDPSocket> socket) override;
-
+  void CreateHttpServer(mojo::NetAddressPtr local_address,
+                        mojo::HttpServerDelegatePtr delegate,
+                        const CreateHttpServerCallback& callback) override;
  private:
   StrongBinding<NetworkService> binding_;
 };
