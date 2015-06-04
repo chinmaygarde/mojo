@@ -552,8 +552,7 @@ source_set("skia_opts") {
     # The assembly uses the frame pointer register (r7 in Thumb/r11 in
     # ARM), the compiler doesn't like that.
     cflags += [ "-fomit-frame-pointer" ]
-
-    if (arm_version >= 7) {
+    if (arm_version >= 7 && (arm_use_neon || arm_optionally_use_neon)) {
       sources = gypi_skia_opts.armv7_sources
       if (arm_use_neon || arm_optionally_use_neon) {
         sources += gypi_skia_opts.neon_sources
@@ -566,7 +565,7 @@ source_set("skia_opts") {
         }
       }
     } else {
-      sources = gypi_skia_opts.none_sourcees
+      sources = gypi_skia_opts.none_sources
     }
   } else if (current_cpu == "mipsel") {
     cflags += [ "-fomit-frame-pointer" ]
