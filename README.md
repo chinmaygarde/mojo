@@ -150,6 +150,40 @@ $ mojo/tools/mojob.py build --android
 If you see javac compile errors, make sure you have an up-to-date JDK:
 https://code.google.com/p/chromium/wiki/AndroidBuildInstructions#Install_Java_JDK
 
+## iOS Builds
+
+To build for iOS (device or simulator), make sure you have the Xcode tools and IDE installed.
+
+Prepare the build directory for iOS:
+
+```
+$ mojo/tools/mojob.py gn --ios
+```
+
+Alternatively, if you are building for the iOS Simulator:
+
+```
+$ mojo/tools/mojob.py gn --ios --simulator
+```
+
+Finally, perform the build. The results will be in `out/ios_Debug` or `out/ios_sim_Debug`
+
+```
+$ mojo/tools/mojob.py build --ios
+```
+
+or
+
+```
+$ mojo/tools/mojob.py build --ios --simulator
+```
+
+To run the code on the simulator, first launch the iOS simulator and use `./build/config/ios/ios_sim.py` to install, launch and debug the app. It is a good idea to add this to your path as well.
+
+```
+$ ./build/config/ios/ios_sim.py -p out/ios_sim_Debug/Sky.app debug
+```
+
 ## Dart Code
 
 Because the dart analyzer is a bit slow, we don't run it unless the user specifically asks for it. To run the dart analyzer against the list of dart targets in the toplevel BUILD.gn file, run:
