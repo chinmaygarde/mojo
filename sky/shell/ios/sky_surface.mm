@@ -113,6 +113,7 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
 -(void) dispatchTouches:(NSSet *) touches phase:(UITouchPhase) phase {
 
   auto eventType = EventTypeFromUITouchPhase(phase);
+  const CGFloat scale = [UIScreen mainScreen].scale;
 
   for (UITouch *touch in touches) {
     auto input = sky::InputEvent::New();
@@ -126,8 +127,8 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
 
     CGPoint windowCoordinates = [touch locationInView:nil];
 
-    input->pointer_data->x = windowCoordinates.x;
-    input->pointer_data->y = windowCoordinates.y;
+    input->pointer_data->x = windowCoordinates.x * scale;
+    input->pointer_data->y = windowCoordinates.y * scale;
 
     _viewport_observer->OnInputEvent(input.Pass());
   }
