@@ -27,6 +27,19 @@ def process_info_plist(args):
     args.input,
   ])
 
+def perform_code_signing(args):
+  return subprocess.check_call([
+    '/usr/bin/env',
+    'xcrun',
+    'codesign',
+    '--entitlements',
+    args.entitlements_path,
+    '--sign',
+    args.identity,
+    '-f',
+    args.application_path,
+  ])
+
 def mkdir_p(path):
   try:
     os.makedirs(path)
@@ -66,6 +79,21 @@ def main():
 
   dir_struct_parser.add_argument('-d', dest='dir', help='Out directory')
   dir_struct_parser.add_argument('-n', dest='name', help='App name')
+
+  # Code Signing
+
+  code_signing_parser = subparsers.add_parser('codesign',
+                        help='Code sign the specified application')
+
+  code_signing_parser.set_defaults(func=perform_code_signing)
+
+  code_signing_parser.add_argument('-p', dest='application_path', required=True,
+                                   help='The application path')
+  code_signing_parser.add_argument('-i', dest='identity', required=True,
+                                   help='The code signing identity to use')
+  code_signing_parser.add_argument('-e', dest='entitlements_path',
+                                   required=True,
+                                   help='The path to the entitlements .xcent')
 
   # Engage!
 

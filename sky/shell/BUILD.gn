@@ -6,7 +6,7 @@ common_deps = [
   "//base",
   "//base:i18n",
   "//build/config/sanitizers:deps",
-  "//dart/runtime/bin:libdart_withcore",
+  "//dart/runtime:libdart",
   "//mojo/common",
   "//mojo/edk/system",
   "//mojo/public/cpp/application",
@@ -115,11 +115,21 @@ if (is_android) {
   }
 } else if (is_ios) {
   import("//build/config/ios/rules.gni")
+  import("//build/config/ios/ios_sdk.gni")
 
   ios_app("shell") {
     app_name = "Sky"
     info_plist = "ios/Info.plist"
     scaffolding_target = "ios_scaffolding"
+    entitlements_path = "ios/Entitlements.xcent"
+    code_signing_identity = ios_code_signing_identity
+
+    resource_copy_ios("sky_resources") {
+      resources = [
+        "//third_party/icu/android/icudtl.dat",
+      ]
+      bundle_directory = "."
+    }
 
     source_set(scaffolding_target) {
       sources = [
@@ -164,7 +174,7 @@ if (is_android) {
       deps = common_deps + ios_deps
     }
 
-    deps = [ ":$scaffolding_target" ]
+    deps = [ ":$scaffolding_target", ":sky_resources" ]
   }
 } else {
   assert(false, "Unsupported platform")
