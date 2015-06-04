@@ -99,6 +99,8 @@ void GLSurfaceIOS::SetupFramebufferIfNecessary() {
     kEAGLDrawablePropertyColorFormat : kEAGLColorFormatRGBA8,
     kEAGLDrawablePropertyRetainedBacking : @(NO),
   };
+
+  framebuffer_setup_complete_ = true;
 }
 
 bool GLSurfaceIOS::SwapBuffers() {
