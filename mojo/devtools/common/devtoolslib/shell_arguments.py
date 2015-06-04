@@ -7,10 +7,16 @@ list."""
 
 import urlparse
 
+_LOCAL_ORIGIN_PORT = 31337
+
 _MAP_ORIGIN_PREFIX = '--map-origin='
 # When spinning up servers for local origins, we want to use predictable ports
 # so that caching works between subsequent runs with the same command line.
 _MAP_ORIGIN_BASE_PORT = 31338
+
+# Port on which the mojo:debugger http server will be available on the host
+# machine.
+_MOJO_DEBUGGER_PORT = 7777
 
 
 def _IsMapOrigin(arg):
@@ -63,3 +69,28 @@ def RewriteMapOriginParameters(shell, original_arguments):
     arguments.append(_RewriteMapOriginParameter(shell, mapping, next_port))
     next_port += 1
   return arguments
+
+
+def ConfigureDebugger(shell):
+  """Configures mojo:debugger to run and sets up port forwarding for its http
+  server if the shell is running on a device.
+
+  Returns:
+    Arguments that need to be appended to the shell argument list in order to
+    run with the debugger.
+  """
+  shell.ForwardHostPortToShell(_MOJO_DEBUGGER_PORT)
+  return ['mojo:debugger %d' % _MOJO_DEBUGGER_PORT]
+
+
+def ConfigureLocalOrigin(shell, local_dir, fixed_port=True):
+  """Sets up a local http server to serve files in |local_dir| along with
+  device port forwarding if needed.
+
+  Returns:
+    The list of arguments to be appended to the shell argument list.
+  """
+
+  origin_url = shell.ServeLocalDirectory(
+      local_dir, _LOCAL_ORIGIN_PORT if fixed_port else 0)
+  return ["--origin=" + origin_url]

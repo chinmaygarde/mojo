@@ -4,24 +4,26 @@
 
 library fn;
 
+import 'app.dart';
 import 'dart:async';
 import 'dart:collection';
 import 'dart:mirrors';
 import 'dart:sky' as sky;
+import 'package:vector_math/vector_math.dart';
 import 'reflect.dart' as reflect;
-import 'app.dart';
-import 'rendering/render_block.dart';
-import 'rendering/render_box.dart';
-import 'rendering/render_flex.dart';
-import 'rendering/render_node.dart';
-import 'rendering/render_paragraph.dart';
+import 'rendering/block.dart';
+import 'rendering/box.dart';
+import 'rendering/flex.dart';
+import 'rendering/object.dart';
+import 'rendering/paragraph.dart';
+import 'rendering/stack.dart';
 
 // final sky.Tracing _tracing = sky.window.tracing;
 
 final bool _shouldLogRenderDuration = false;
 final bool _shouldTrace = false;
 
-enum _SyncOperation { IDENTICAL, INSERTION, STATEFUL, STATELESS, REMOVAL }
+enum _SyncOperation { identical, insertion, stateful, stateless, removal }
 
 /*
  * All Effen nodes derive from UINode. All nodes have a _parent, a _key and
@@ -31,7 +33,7 @@ abstract class UINode {
   String _key;
   UINode _parent;
   UINode get parent => _parent;
-  RenderNode root;
+  RenderObject root;
   bool _defunct = false;
 
   UINode({ Object key }) {
@@ -46,7 +48,7 @@ abstract class UINode {
   bool get interchangeable => false; // if true, then keys can be duplicated
 
   void _sync(UINode old, dynamic slot);
-  // 'slot' is the identifier that the parent RenderNodeWrapper uses to know
+  // 'slot' is the identifier that the parent RenderObjectWrapper uses to know
   // where to put this descendant
 
   void _remove() {
@@ -93,14 +95,14 @@ abstract class UINode {
   }
 
   void removeChild(UINode node) {
-    _traceSync(_SyncOperation.REMOVAL, node._key);
+    _traceSync(_SyncOperation.removal, node._key);
     node._remove();
   }
 
   // Returns the child which should be retained as the child of this node.
   UINode syncChild(UINode node, UINode oldNode, dynamic slot) {
     if (node == oldNode) {
-      _traceSync(_SyncOperation.IDENTICAL, node == null ? '*null*' : node._key);
+      _traceSync(_SyncOperation.identical, node == null ? '*null*' : node._key);
       return node; // Nothing to do. Subtrees must be identical.
     }
 
@@ -119,10 +121,10 @@ abstract class UINode {
     }
 
     if (node._willSync(oldNode)) {
-      _traceSync(_SyncOperation.STATEFUL, node._key);
+      _traceSync(_SyncOperation.stateful, node._key);
       oldNode._sync(node, slot);
       node._defunct = true;
-      assert(oldNode.root is RenderNode);
+      assert(oldNode.root is RenderObject);
       return oldNode;
     }
 
@@ -130,15 +132,15 @@ abstract class UINode {
     node._parent = this;
 
     if (oldNode == null) {
-      _traceSync(_SyncOperation.INSERTION, node._key);
+      _traceSync(_SyncOperation.insertion, node._key);
     } else {
-      _traceSync(_SyncOperation.STATELESS, node._key);
+      _traceSync(_SyncOperation.stateless, node._key);
     }
     node._sync(oldNode, slot);
     if (oldNode != null)
       oldNode._defunct = true;
 
-    assert(node.root is RenderNode);
+    assert(node.root is RenderObject);
     return node;
   }
 }
@@ -168,14 +170,12 @@ class ParentDataNode extends ContentNode {
   ParentDataNode(UINode content, this.parentData): super(content);
 }
 
-typedef GestureEventListener(sky.GestureEvent e);
-typedef PointerEventListener(sky.PointerEvent e);
-typedef EventListener(sky.Event e);
+typedef void GestureEventListener(sky.GestureEvent e);
+typedef void PointerEventListener(sky.PointerEvent e);
+typedef void EventListener(sky.Event e);
 
 class EventListenerNode extends ContentNode  {
   final Map<String, sky.EventListener> listeners;
-
-  static final Set<String> _registeredEvents = new HashSet<String>();
 
   static Map<String, sky.EventListener> _createListeners({
     EventListener onWheel,
@@ -256,78 +256,50 @@ class EventListenerNode extends ContentNode  {
       listener(e);
     }
   }
-
-  static void _dispatchEvent(sky.Event e) {
-    UINode target = RenderNodeWrapper._getMounted(bridgeEventTargetToRenderNode(e.target));
-
-    // TODO(rafaelw): StopPropagation?
-    while (target != null) {
-      if (target is EventListenerNode) {
-        target._handleEvent(e);
-      }
-
-      target = target._parent;
-    }
-  }
-
-  static void _ensureDocumentListener(String eventType) {
-    if (_registeredEvents.add(eventType)) {
-      sky.document.addEventListener(eventType, _dispatchEvent);
-    }
-  }
-
-  void _sync(UINode old, dynamic slot) {
-    for (var type in listeners.keys) {
-      _ensureDocumentListener(type);
-    }
-    super._sync(old, slot);
-  }
 }
 
 /*
- * RenderNodeWrappers correspond to a desired state of a RenderNode.
+ * RenderObjectWrappers correspond to a desired state of a RenderObject.
  * They are fully immutable, with one exception: A UINode which is a
- * Component which lives within an OneChildListRenderNodeWrapper's
+ * Component which lives within an MultiChildRenderObjectWrapper's
  * children list, may be replaced with the "old" instance if it has
  * become stateful.
  */
-abstract class RenderNodeWrapper extends UINode {
+abstract class RenderObjectWrapper extends UINode {
 
-  static final Map<RenderNode, RenderNodeWrapper> _nodeMap =
-      new HashMap<RenderNode, RenderNodeWrapper>();
+  static final Map<RenderObject, RenderObjectWrapper> _nodeMap =
+      new HashMap<RenderObject, RenderObjectWrapper>();
 
-  static RenderNodeWrapper _getMounted(RenderNode node) => _nodeMap[node];
+  static RenderObjectWrapper _getMounted(RenderObject node) => _nodeMap[node];
 
-  RenderNodeWrapper({
+  RenderObjectWrapper({
     Object key
   }) : super(key: key);
 
-  RenderNode createNode();
-  RenderNodeWrapper get emptyNode;
+  RenderObject createNode();
 
-  void insert(RenderNodeWrapper child, dynamic slot);
+  void insert(RenderObjectWrapper child, dynamic slot);
 
   void _sync(UINode old, dynamic slot) {
     if (old == null) {
       root = createNode();
       assert(root != null);
-      var ancestor = findAncestor(RenderNodeWrapper);
-      if (ancestor is RenderNodeWrapper)
+      var ancestor = findAncestor(RenderObjectWrapper);
+      if (ancestor is RenderObjectWrapper)
         ancestor.insert(this, slot);
-      old = emptyNode;
     } else {
       root = old.root;
       assert(root != null);
     }
 
     _nodeMap[root] = this;
-    syncRenderNode(old);
+    syncRenderObject(old);
   }
 
-  void syncRenderNode(RenderNodeWrapper old) {
+  void syncRenderObject(RenderObjectWrapper old) {
     ParentData parentData = null;
     UINode parent = _parent;
-    while (parent != null && parent is! RenderNodeWrapper) {
+    while (parent != null && parent is! RenderObjectWrapper) {
       if (parent is ParentDataNode && parent.parentData != null) {
         if (parentData != null)
           parentData.merge(parent.parentData); // this will throw if the types aren't the same
@@ -345,11 +317,6 @@ abstract class RenderNodeWrapper extends UINode {
     }
   }
 
-  void removeChild(UINode node) {
-    root.remove(node.root);
-    super.removeChild(node);
-  }
-
   void _remove() {
     assert(root != null);
     _nodeMap.remove(root);
@@ -357,16 +324,113 @@ abstract class RenderNodeWrapper extends UINode {
   }
 }
 
+abstract class OneChildRenderObjectWrapper extends RenderObjectWrapper {
+  final UINode child;
+
+  OneChildRenderObjectWrapper({ this.child, Object key }) : super(key: key);
+
+  void syncRenderObject(RenderObjectWrapper old) {
+    super.syncRenderObject(old);
+    UINode oldChild = old == null ? null : (old as OneChildRenderObjectWrapper).child;
+    syncChild(child, oldChild, null);
+  }
+
+  void insert(RenderObjectWrapper child, dynamic slot) {
+    assert(slot == null);
+    root.child = child.root;
+  }
+
+  void removeChild(UINode node) {
+    root.child = null;
+    super.removeChild(node);
+  }
+
+  void _remove() {
+    if (child != null)
+      removeChild(child);
+    super._remove();
+  }
+}
+
+class Clip extends OneChildRenderObjectWrapper {
+  RenderClip root;
+
+  Clip({ UINode child, Object key })
+    : super(child: child, key: key);
+
+  RenderClip createNode() => new RenderClip();
+}
+
+class Padding extends OneChildRenderObjectWrapper {
+  RenderPadding root;
+  final EdgeDims padding;
+
+  Padding({ this.padding, UINode child, Object key })
+    : super(child: child, key: key);
+
+  RenderPadding createNode() => new RenderPadding(padding: padding);
+
+  void syncRenderObject(Padding old) {
+    super.syncRenderObject(old);
+    root.padding = padding;
+  }
+}
+
+class DecoratedBox extends OneChildRenderObjectWrapper {
+  RenderDecoratedBox root;
+  final BoxDecoration decoration;
+
+  DecoratedBox({ this.decoration, UINode child, Object key })
+    : super(child: child, key: key);
+
+  RenderDecoratedBox createNode() => new RenderDecoratedBox(decoration: decoration);
+
+  void syncRenderObject(DecoratedBox old) {
+    super.syncRenderObject(old);
+    root.decoration = decoration;
+  }
+}
+
+class SizedBox extends OneChildRenderObjectWrapper {
+  RenderSizedBox root;
+  final sky.Size desiredSize;
+
+  SizedBox({ this.desiredSize, UINode child, Object key })
+    : super(child: child, key: key);
+
+  RenderSizedBox createNode() => new RenderSizedBox(desiredSize: desiredSize);
+
+  void syncRenderObject(SizedBox old) {
+    super.syncRenderObject(old);
+    root.desiredSize = desiredSize;
+  }
+}
+
+class Transform extends OneChildRenderObjectWrapper {
+  RenderTransform root;
+  final Matrix4 transform;
+
+  Transform({ this.transform, UINode child, Object key })
+    : super(child: child, key: key);
+
+  RenderTransform createNode() => new RenderTransform(transform: transform);
+
+  void syncRenderObject(Transform old) {
+    super.syncRenderObject(old);
+    root.transform = transform;
+  }
+}
+
 final List<UINode> _emptyList = new List<UINode>();
 
-abstract class OneChildListRenderNodeWrapper extends RenderNodeWrapper {
+abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
 
-  // In OneChildListRenderNodeWrapper subclasses, slots are RenderNode nodes
-  // to use as the "insert before" sibling in ContainerRenderNodeMixin.add() calls
+  // In MultiChildRenderObjectWrapper subclasses, slots are RenderObject nodes
+  // to use as the "insert before" sibling in ContainerRenderObjectMixin.add() calls
 
   final List<UINode> children;
 
-  OneChildListRenderNodeWrapper({
+  MultiChildRenderObjectWrapper({
     Object key,
     List<UINode> children
   }) : this.children = children == null ? _emptyList : children,
@@ -376,9 +440,15 @@ abstract class OneChildListRenderNodeWrapper extends RenderNodeWrapper {
     assert(!_debugHasDuplicateIds());
   }
 
-  void insert(RenderNodeWrapper child, dynamic slot) {
-    assert(slot == null || slot is RenderNode);
+  void insert(RenderObjectWrapper child, dynamic slot) {
+    assert(slot == null || slot is RenderObject);
     root.add(child.root, before: slot);
+  }
+
+  void removeChild(UINode node) {
+    assert(root is ContainerRenderObjectMixin);
+    root.remove(node.root);
+    super.removeChild(node);
   }
 
   void _remove() {
@@ -406,20 +476,20 @@ abstract class OneChildListRenderNodeWrapper extends RenderNodeWrapper {
     return false;
   }
 
-  void syncRenderNode(OneChildListRenderNodeWrapper old) {
-    super.syncRenderNode(old);
+  void syncRenderObject(MultiChildRenderObjectWrapper old) {
+    super.syncRenderObject(old);
 
-    if (root is! ContainerRenderNodeMixin)
+    if (root is! ContainerRenderObjectMixin)
       return;
 
     var startIndex = 0;
     var endIndex = children.length;
 
-    var oldChildren = old.children;
+    var oldChildren = old == null ? [] : old.children;
     var oldStartIndex = 0;
     var oldEndIndex = oldChildren.length;
 
-    RenderNode nextSibling = null;
+    RenderObject nextSibling = null;
     UINode currentNode = null;
     UINode oldNode = null;
 
@@ -481,8 +551,8 @@ abstract class OneChildListRenderNodeWrapper extends RenderNodeWrapper {
         return false;
 
       oldNodeIdMap[currentNode._key] = null; // mark it reordered
-      assert(root is ContainerRenderNodeMixin);
-      assert(oldNode.root is ContainerRenderNodeMixin);
+      assert(root is ContainerRenderObjectMixin);
+      assert(oldNode.root is ContainerRenderObjectMixin);
 
       old.root.remove(oldNode.root);
       root.add(oldNode.root, before: nextSibling);
@@ -529,157 +599,76 @@ abstract class OneChildListRenderNodeWrapper extends RenderNodeWrapper {
   }
 }
 
-class Container extends OneChildListRenderNodeWrapper {
+class BlockContainer extends MultiChildRenderObjectWrapper {
+  RenderBlock root;
+  RenderBlock createNode() => new RenderBlock();
 
-  RenderCSSContainer root;
-  RenderCSSContainer createNode() => new RenderCSSContainer(this);
-
-  static final Container _emptyContainer = new Container();
-
-  RenderNodeWrapper get emptyNode => _emptyContainer;
-
-  Container({
-    Object key,
-    List<UINode> children
-  }) : super(
-    key: key,
-    children: children
-  );
+  BlockContainer({ Object key, List<UINode> children })
+    : super(key: key, children: children);
 }
 
-class Paragraph extends RenderNodeWrapper {
+class StackContainer extends MultiChildRenderObjectWrapper {
+  RenderStack root;
+  RenderStack createNode() => new RenderStack();
 
+  StackContainer({ Object key, List<UINode> children })
+    : super(key: key, children: children);
+}
+
+class Paragraph extends RenderObjectWrapper {
   RenderParagraph root;
-  RenderParagraph createNode() => new RenderParagraph(text);
-  String text;
+  RenderParagraph createNode() => new RenderParagraph(text: text);
 
-  static final Paragraph _emptyContainer = new Paragraph();
+  final String text;
 
-  RenderNodeWrapper get emptyNode => _emptyContainer;
+  Paragraph({ Object key, this.text }) : super(key: key);
 
-  Paragraph({
-    Object key,
-    this.text
-  }) : super(
-    key: key
-  );
-
-  void syncRenderNode(UINode old) {
-    super.syncRenderNode(old);
+  void syncRenderObject(UINode old) {
+    super.syncRenderObject(old);
     root.text = text;
   }
 }
 
-class FlexContainer extends OneChildListRenderNodeWrapper {
-
+class FlexContainer extends MultiChildRenderObjectWrapper {
   RenderFlex root;
   RenderFlex createNode() => new RenderFlex(direction: this.direction);
-
-  static final FlexContainer _emptyContainer = new FlexContainer();
-    // direction doesn't matter if it's empty
-
-  RenderNodeWrapper get emptyNode => _emptyContainer;
 
   final FlexDirection direction;
 
   FlexContainer({
     Object key,
     List<UINode> children,
-    this.direction: FlexDirection.Horizontal
-  }) : super(
-    key: key,
-    children: children
-  );
+    this.direction: FlexDirection.horizontal
+  }) : super(key: key, children: children);
 
-  void syncRenderNode(UINode old) {
-    super.syncRenderNode(old);
+  void syncRenderObject(UINode old) {
+    super.syncRenderObject(old);
     root.direction = direction;
   }
 }
 
 class FlexExpandingChild extends ParentDataNode {
-  FlexExpandingChild(UINode content, [int flex = 1]): super(content, new FlexBoxParentData()..flex = flex);
+  FlexExpandingChild(UINode content, [int flex = 1])
+    : super(content, new FlexBoxParentData()..flex = flex);
 }
 
-class FillStackContainer extends OneChildListRenderNodeWrapper {
-
-  RenderCSSStack root;
-  RenderCSSStack createNode() => new RenderCSSStack(this);
-
-  static final FillStackContainer _emptyContainer = new FillStackContainer();
-
-  RenderNodeWrapper get emptyNode => _emptyContainer;
-
-  FillStackContainer({
-    Object key,
-    List<UINode> children
-  }) : super(
-    key: key,
-    children: _positionNodesToFill(children)
-  );
-
-  static StackParentData _fillParentData = new StackParentData()
-                                                 ..top = 0.0
-                                                 ..left = 0.0
-                                                 ..right = 0.0
-                                                 ..bottom = 0.0;
-
-  static List<UINode> _positionNodesToFill(List<UINode> input) {
-    if (input == null)
-      return null;
-    return input.map((node) {
-      return new ParentDataNode(node, _fillParentData);
-    }).toList();
-  }
-}
-
-abstract class OneChildRenderNodeWrapper extends RenderNodeWrapper {
-
-  final UINode child;
-  RenderNodeWithChildMixin root;
-
-  OneChildRenderNodeWrapper({
-    Object key,
-    this.child
-  }) : super(key: key);
-
-  void insert(RenderNodeWrapper child, dynamic slot) {
-    assert(slot == null);
-    root.child = child.root;
-  }
-
-  void _remove() {
-    assert(child != null);
-    removeChild(child);
-    super._remove();
-  }
-}
-
-class Image extends RenderNodeWrapper {
-
-  RenderCSSImage root;
-  RenderCSSImage createNode() => new RenderCSSImage(this, this.src, this.width, this.height);
-
-  static final Image _emptyImage = new Image();
-
-  RenderNodeWrapper get emptyNode => _emptyImage;
+class Image extends RenderObjectWrapper {
+  RenderImage root;
+  RenderImage createNode() => new RenderImage(this.src, this.size);
 
   final String src;
-  final int width;
-  final int height;
+  final sky.Size size;
 
   Image({
     Object key,
-    this.width,
-    this.height,
-    this.src
-  }) : super(
-    key: key
-  );
+    this.src,
+    this.size
+  }) : super(key: key);
 
-  void syncRenderNode(UINode old) {
-    super.syncRenderNode(old);
-    root.configure(this.src, this.width, this.height);
+  void syncRenderObject(UINode old) {
+    super.syncRenderObject(old);
+    root.src = src;
+    root.requestedSize = size;
   }
 }
 
@@ -804,7 +793,7 @@ abstract class Component extends UINode {
 
   // TODO(rafaelw): It seems wrong to expose DOM at all. This is presently
   // needed to get sizing info.
-  RenderNode getRoot() => root;
+  RenderObject getRoot() => root;
 
   void _remove() {
     assert(_built != null);
@@ -898,10 +887,67 @@ abstract class Component extends UINode {
   UINode build();
 }
 
+class Container extends Component {
+  final UINode child;
+  final Matrix4 transform;
+  final EdgeDims margin;
+  final BoxDecoration decoration;
+  final sky.Size desiredSize;
+  final EdgeDims padding;
+
+  Container({
+    Object key,
+    this.child,
+    this.transform,
+    this.margin,
+    this.decoration,
+    this.desiredSize,
+    this.padding
+  }) : super(key: key);
+
+  UINode build() {
+    UINode current = child;
+
+    if (padding != null)
+      current = new Padding(padding: padding, child: current);
+
+    if (decoration != null)
+      current = new DecoratedBox(decoration: decoration, child: current);
+
+    if (desiredSize != null)
+      current = new SizedBox(desiredSize: desiredSize, child: current);
+
+    if (margin != null)
+      current = new Padding(padding: margin, child: current);
+
+    if (transform != null)
+      current = new Transform(transform: transform, child: current);
+
+    return current;
+  }
+}
+
+class _AppView extends AppView {
+  _AppView() : super(null);
+
+  void dispatchEvent(sky.Event event, HitTestResult result) {
+    super.dispatchEvent(event, result);
+
+    UINode target = RenderObjectWrapper._getMounted(result.path.first);
+
+    // TODO(rafaelw): StopPropagation?
+    while (target != null) {
+      if (target is EventListenerNode)
+        target._handleEvent(event);
+      target = target._parent;
+    }
+  }
+}
+
 abstract class App extends Component {
 
   App() : super(stateful: true) {
-    _appView = new AppView(null);
+    _appView = new _AppView();
     _scheduleComponentForRender(this);
   }
 
@@ -923,49 +969,4 @@ class Text extends Component {
   final String data;
   bool get interchangeable => true;
   UINode build() => new Paragraph(text: data);
-}
-
-
-// for now, but only for now:
-
-class RenderSolidColor extends RenderDecoratedBox {
-  final sky.Size desiredSize;
-  final int backgroundColor;
-
-  RenderSolidColor(int backgroundColor, { this.desiredSize })
-      : backgroundColor = backgroundColor,
-        super(new BoxDecoration(backgroundColor: backgroundColor));
-
-  sky.Size getIntrinsicDimensions(BoxConstraints constraints) {
-    return constraints.constrain(desiredSize);
-  }
-
-  void performLayout() {
-    size = constraints.constrain(desiredSize);
-  }
-
-  void handlePointer(sky.PointerEvent event) {
-    if (event.type == 'pointerdown')
-      decoration = new BoxDecoration(backgroundColor: 0xFFFF0000);
-    else if (event.type == 'pointerup')
-      decoration = new BoxDecoration(backgroundColor: backgroundColor);
-  }
-}
-
-class Rectangle extends RenderNodeWrapper {
-
-  Rectangle(this.color, {
-    Object key
-  }) : super(
-    key: key
-  );
-
-  final int color;
-
-  RenderSolidColor root;
-  RenderSolidColor createNode() => new RenderSolidColor(color, desiredSize: new sky.Size(40.0, 130.0));
-
-  static final Rectangle _emptyRectangle = new Rectangle(0);
-  RenderNodeWrapper get emptyNode => _emptyRectangle;
-
 }

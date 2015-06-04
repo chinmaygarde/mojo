@@ -3,12 +3,10 @@
 // found in the LICENSE file.
 
 import '../fn2.dart';
+import '../rendering/box.dart';
 import 'icon.dart';
 
 class IconButton extends Component {
-  static Style _style = new Style('''
-    padding: 8px;''');
-
   String icon;
   GestureEventListener onGestureTap;
 
@@ -17,7 +15,9 @@ class IconButton extends Component {
 
   UINode build() {
     return new EventListenerNode(
-      new StyleNode(new Icon(type: icon, size: 24), _style),
+      new Padding(
+        child: new Icon(type: icon, size: 24),
+        padding: const EdgeDims.all(8.0)),
       onGestureTap: onGestureTap);
   }
 }

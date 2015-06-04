@@ -6,7 +6,7 @@ import '../resources/third_party/unittest/unittest.dart';
 import '../resources/unit.dart';
 import '../resources/display_list.dart';
 import 'dart:sky' as sky;
-import 'package:sky/framework/rendering/render_box.dart';
+import 'package:sky/framework/rendering/box.dart';
 
 void main() {
   initUnit();
@@ -14,7 +14,7 @@ void main() {
   test("should size to render view", () {
     RenderSizedBox root = new RenderSizedBox(
       child: new RenderDecoratedBox(
-        decoration: new BoxDecoration(backgroundColor: 0xFF00FF00)
+        decoration: new BoxDecoration(backgroundColor: const sky.Color(0xFF00FF00))
       )
     );
     TestView renderView = new TestView(child: root);

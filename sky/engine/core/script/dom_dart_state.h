@@ -17,7 +17,7 @@ class LocalDOMWindow;
 
 class DOMDartState : public DartState {
  public:
-  explicit DOMDartState(Document* document);
+  explicit DOMDartState(Document* document, const KURL& url);
   ~DOMDartState() override;
 
   virtual void DidSetIsolate();
@@ -28,21 +28,26 @@ class DOMDartState : public DartState {
   static LocalFrame* CurrentFrame();
   static LocalDOMWindow* CurrentWindow();
 
+  const KURL& url() const { return url_; }
+
   Document* document() const { return document_.get(); }
   DartLoader& loader() const { return *loader_; }
 
   // Cached handles to strings used in Dart/C++ conversions.
   Dart_Handle x_handle() { return x_handle_.value(); }
   Dart_Handle y_handle() { return y_handle_.value(); }
+  Dart_Handle index_handle() { return index_handle_.value(); }
   Dart_Handle value_handle() { return value_handle_.value(); }
   Dart_Handle color_class() { return color_class_.value(); }
 
  private:
   RefPtr<Document> document_;
+  KURL url_;
   OwnPtr<DartLoader> loader_;
 
   DartPersistentValue x_handle_;
   DartPersistentValue y_handle_;
+  DartPersistentValue index_handle_;
   DartPersistentValue value_handle_;
   DartPersistentValue color_class_;
 };

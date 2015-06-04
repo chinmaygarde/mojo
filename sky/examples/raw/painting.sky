@@ -8,6 +8,7 @@ div {
 <div id="canvas" />
 <script>
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:sky';
 
 void main() {
@@ -29,11 +30,12 @@ void main() {
                      paint);
 
     // Scale x and y by 0.5.
-    var scaleMatrix = [
-        0.5, 0.0, 0.0,
-        0.0, 0.5, 0.0,
-        0.0, 0.0, 1.0
-    ];
+    var scaleMatrix = new Float32List.fromList([
+        0.5, 0.0, 0.0, 0.0,
+        0.0, 0.5, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    ]);
     context.concat(scaleMatrix);
     paint.color = const Color.fromARGB(128, 0, 255, 0);
     context.drawCircle(0.0, 0.0, radius, paint);
@@ -44,18 +46,26 @@ void main() {
     var builder = new LayerDrawLooperBuilder()
         ..addLayerOnTop(
             new DrawLooperLayerInfo()
-              ..setOffset(150.0, 0.0)..setPaintBits(-1)..setColorMode(1),
+              ..setOffset(const Point(150.0, 0.0))
+              ..setColorMode(TransferMode.srcMode)
+              ..setPaintBits(-1),
             (Paint layerPaint) {
           layerPaint.color = const Color.fromARGB(128, 255, 255, 0);
-          layerPaint.setColorFilter(new ColorFilter(0x770000ff, 5));
+          layerPaint.setColorFilter(
+              new ColorFilter(const Color.fromARGB(128, 0, 0, 255),
+                              TransferMode.srcInMode));
+          layerPaint.setMaskFilter(
+              new MaskFilter.Blur(BlurStyle.normal, 3.0, highQuality: true));
         })
         ..addLayerOnTop(
-            new DrawLooperLayerInfo()..setOffset(75.0, 75.0)..setColorMode(1),
+            new DrawLooperLayerInfo()
+              ..setOffset(const Point(75.0, 75.0))
+              ..setColorMode(TransferMode.srcMode),
             (Paint layerPaint) {
           layerPaint.color = const Color.fromARGB(128, 255, 0, 0);
         })
         ..addLayerOnTop(
-            new DrawLooperLayerInfo()..setOffset(225.0, 75.0),
+            new DrawLooperLayerInfo()..setOffset(const Point(225.0, 75.0)),
             (Paint layerPaint) {
           // Since this layer uses a DST color mode, this has no effect.
           layerPaint.color = const Color.fromARGB(128, 255, 0, 0);

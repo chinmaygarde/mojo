@@ -11,8 +11,8 @@
 
 namespace blink {
 
-DOMDartState::DOMDartState(Document* document)
-    : document_(document), loader_(adoptPtr(new DartLoader(this))) {
+DOMDartState::DOMDartState(Document* document, const KURL& url)
+    : document_(document), url_(url), loader_(adoptPtr(new DartLoader(this))) {
 }
 
 DOMDartState::~DOMDartState() {
@@ -22,6 +22,7 @@ void DOMDartState::DidSetIsolate() {
   Scope dart_scope(this);
   x_handle_.Set(this, Dart_NewStringFromCString("x"));
   y_handle_.Set(this, Dart_NewStringFromCString("y"));
+  index_handle_.Set(this, Dart_NewStringFromCString("index"));
   value_handle_.Set(this, Dart_NewStringFromCString("_value"));
 
   Dart_Handle sky_library = DartBuiltin::LookupLibrary("dart:sky");

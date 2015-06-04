@@ -27,57 +27,69 @@ double clamp({double min: 0.0, double value: 0.0, double max: double.INFINITY}) 
   return math.max(min, math.min(max, value));
 }
 
-class RenderNodeDisplayList extends sky.PictureRecorder {
-  RenderNodeDisplayList(double width, double height) : super(width, height);
-  void paintChild(RenderNode child, sky.Point position) {
+class RenderObjectDisplayList extends sky.PictureRecorder {
+  RenderObjectDisplayList(double width, double height) : super(width, height);
+  void paintChild(RenderObject child, sky.Point position) {
     translate(position.x, position.y);
     child.paint(this);
     translate(-position.x, -position.y);
   }
 }
 
-abstract class RenderNode extends AbstractNode {
+abstract class RenderObject extends AbstractNode {
 
   // LAYOUT
 
-  // parentData is only for use by the RenderNode that actually lays this
+  // parentData is only for use by the RenderObject that actually lays this
   // node out, and any other nodes who happen to know exactly what
   // kind of node that is.
   ParentData parentData;
-  void setParentData(RenderNode child) {
+  void setParentData(RenderObject child) {
     // override this to setup .parentData correctly for your class
+    assert(!_debugDoingLayout);
+    assert(!debugDoingPaint);
     if (child.parentData is! ParentData)
       child.parentData = new ParentData();
   }
 
-  void adoptChild(RenderNode child) { // only for use by subclasses
+  void adoptChild(RenderObject child) { // only for use by subclasses
     // call this whenever you decide a node is a child
+    assert(!_debugDoingLayout);
+    assert(!debugDoingPaint);
     assert(child != null);
     setParentData(child);
     super.adoptChild(child);
+    markNeedsLayout();
   }
-  void dropChild(RenderNode child) { // only for use by subclasses
+  void dropChild(RenderObject child) { // only for use by subclasses
+    assert(!_debugDoingLayout);
+    assert(!debugDoingPaint);
     assert(child != null);
     assert(child.parentData != null);
     child.parentData.detach();
+    if (child._relayoutSubtreeRoot != child) {
+      child._relayoutSubtreeRoot = null;
+      child._needsLayout = true;
+    }
     super.dropChild(child);
+    markNeedsLayout();
   }
 
-  static List<RenderNode> _nodesNeedingLayout = new List<RenderNode>();
+  static List<RenderObject> _nodesNeedingLayout = new List<RenderObject>();
   static bool _debugDoingLayout = false;
   bool _needsLayout = true;
   bool get needsLayout => _needsLayout;
-  RenderNode _relayoutSubtreeRoot;
+  RenderObject _relayoutSubtreeRoot;
   dynamic _constraints;
   dynamic get constraints => _constraints;
   bool debugAncestorsAlreadyMarkedNeedsLayout() {
     if (_relayoutSubtreeRoot == null)
       return true; // we haven't yet done layout even once, so there's nothing for us to do
-    RenderNode node = this;
+    RenderObject node = this;
     while (node != _relayoutSubtreeRoot) {
       assert(node._relayoutSubtreeRoot == _relayoutSubtreeRoot);
       assert(node.parent != null);
-      node = node.parent as RenderNode;
+      node = node.parent as RenderObject;
       if (!node._needsLayout)
         return false;
     }
@@ -94,16 +106,17 @@ abstract class RenderNode extends AbstractNode {
     _needsLayout = true;
     assert(_relayoutSubtreeRoot != null);
     if (_relayoutSubtreeRoot != this) {
-      assert(parent is RenderNode);
+      assert(parent is RenderObject);
       parent.markNeedsLayout();
     } else {
       _nodesNeedingLayout.add(this);
+      scheduler.ensureVisualUpdate();
     }
   }
   static void flushLayout() {
     _debugDoingLayout = true;
-    List<RenderNode> dirtyNodes = _nodesNeedingLayout;
-    _nodesNeedingLayout = new List<RenderNode>();
+    List<RenderObject> dirtyNodes = _nodesNeedingLayout;
+    _nodesNeedingLayout = new List<RenderObject>();
     dirtyNodes..sort((a, b) => a.depth - b.depth)..forEach((node) {
       if (node._needsLayout && node.attached)
         node._doLayout();
@@ -122,8 +135,8 @@ abstract class RenderNode extends AbstractNode {
     _needsLayout = false;
   }
   void layout(dynamic constraints, { bool parentUsesSize: false }) {
-    RenderNode relayoutSubtreeRoot;
-    if (!parentUsesSize || sizedByParent || parent is! RenderNode)
+    RenderObject relayoutSubtreeRoot;
+    if (!parentUsesSize || sizedByParent || parent is! RenderObject)
       relayoutSubtreeRoot = this;
     else
       relayoutSubtreeRoot = parent._relayoutSubtreeRoot;
@@ -176,17 +189,20 @@ abstract class RenderNode extends AbstractNode {
     assert(!debugDoingPaint);
     scheduler.ensureVisualUpdate();
   }
-  void paint(RenderNodeDisplayList canvas) { }
+  void paint(RenderObjectDisplayList canvas) { }
+
+
+  // EVENTS
+
+  void handleEvent(sky.Event event) {
+    // override this if you have a client, to hand it to the client
+    // override this if you want to do anything with the event
+  }
 
 
   // HIT TESTING
 
-  void handlePointer(sky.PointerEvent event) {
-    // override this if you have a client, to hand it to the client
-    // override this if you want to do anything with the pointer event
-  }
-
-  // RenderNode subclasses are expected to have a method like the
+  // RenderObject subclasses are expected to have a method like the
   // following (with the signature being whatever passes for coordinates
   // for this particular class):
   // bool hitTest(HitTestResult result, { sky.Point position }) {
@@ -206,11 +222,11 @@ abstract class RenderNode extends AbstractNode {
 }
 
 class HitTestResult {
-  final List<RenderNode> path = new List<RenderNode>();
+  final List<RenderObject> path = new List<RenderObject>();
 
-  RenderNode get result => path.first;
+  RenderObject get result => path.first;
 
-  void add(RenderNode node) {
+  void add(RenderObject node) {
     path.add(node);
   }
 }
@@ -218,7 +234,7 @@ class HitTestResult {
 
 // GENERIC MIXIN FOR RENDER NODES WITH ONE CHILD
 
-abstract class RenderNodeWithChildMixin<ChildType extends RenderNode> {
+abstract class RenderObjectWithChildMixin<ChildType extends RenderObject> {
   ChildType _child;
   ChildType get child => _child;
   void set child (ChildType value) {
@@ -227,14 +243,21 @@ abstract class RenderNodeWithChildMixin<ChildType extends RenderNode> {
     _child = value;
     if (_child != null)
       adoptChild(_child);
-    markNeedsLayout();
+  }
+  void attachChildren() {
+    if (_child != null)
+      _child.attach();
+  }
+  void detachChildren() {
+    if (_child != null)
+      _child.detach();
   }
 }
 
 
 // GENERIC MIXIN FOR RENDER NODES WITH A LIST OF CHILDREN
 
-abstract class ContainerParentDataMixin<ChildType extends RenderNode> {
+abstract class ContainerParentDataMixin<ChildType extends RenderObject> {
   ChildType previousSibling;
   ChildType nextSibling;
   void detachSiblings() {
@@ -255,7 +278,7 @@ abstract class ContainerParentDataMixin<ChildType extends RenderNode> {
   }
 }
 
-abstract class ContainerRenderNodeMixin<ChildType extends RenderNode, ParentDataType extends ContainerParentDataMixin<ChildType>> implements RenderNode {
+abstract class ContainerRenderObjectMixin<ChildType extends RenderObject, ParentDataType extends ContainerParentDataMixin<ChildType>> implements RenderObject {
   // abstract class that has only InlineNode children
 
   bool _debugUltimatePreviousSiblingOf(ChildType child, { ChildType equals }) {
@@ -324,7 +347,6 @@ abstract class ContainerRenderNodeMixin<ChildType extends RenderNode, ParentData
         assert(before.parentData.previousSibling == child);
       }
     }
-    markNeedsLayout();
   }
   void remove(ChildType child) {
     assert(child.parentData is ParentDataType);
@@ -347,7 +369,6 @@ abstract class ContainerRenderNodeMixin<ChildType extends RenderNode, ParentData
     child.parentData.previousSibling = null;
     child.parentData.nextSibling = null;
     dropChild(child);
-    markNeedsLayout();
   }
   void redepthChildren() {
     ChildType child = _firstChild;

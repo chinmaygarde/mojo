@@ -3,9 +3,16 @@
 // found in the LICENSE file.
 
 import 'dart:sky' as sky;
-import 'rendering/render_box.dart';
-import 'rendering/render_node.dart';
+import 'rendering/box.dart';
+import 'rendering/object.dart';
 import 'scheduler.dart' as scheduler;
+
+class PointerState {
+  HitTestResult result;
+  sky.Point lastPosition;
+
+  PointerState({ this.result, this.lastPosition });
+}
 
 class AppView {
 
@@ -16,55 +23,73 @@ class AppView {
 
     _renderView = new RenderView(child: root);
     _renderView.attach();
-    _renderView.layout(new ViewConstraints(width: sky.view.width, height: sky.view.height));
+    _renderView.layout(new ViewConstraints(width: sky.view.width,
+                                           height: sky.view.height));
 
     scheduler.ensureVisualUpdate();
   }
 
   RenderView _renderView;
 
-  Map<int, HitTestResult> _hitTestResultForPointer = new Map<int, HitTestResult>();
+  Map<int, PointerState> _stateForPointer = new Map<int, PointerState>();
 
   RenderBox get root => _renderView.child;
   void set root(RenderBox value) {
     _renderView.child = value;
   }
   void _beginFrame(double timeStamp) {
-    RenderNode.flushLayout();
+    RenderObject.flushLayout();
     _renderView.paintFrame();
   }
 
   void _handleEvent(sky.Event event) {
-    if (event is sky.PointerEvent)
+    if (event is sky.PointerEvent) {
       _handlePointerEvent(event);
+    } else if (event is sky.GestureEvent) {
+      HitTestResult result = new HitTestResult();
+      _renderView.hitTest(result, position: new sky.Point(event.x, event.y));
+      dispatchEvent(event, result);
+    }
+  }
+
+  PointerState _createStateForPointer(sky.PointerEvent event, sky.Point position) {
+    HitTestResult result = new HitTestResult();
+    _renderView.hitTest(result, position: position);
+    PointerState state = new PointerState(result: result, lastPosition: position);
+    _stateForPointer[event.pointer] = state;
+    return state;
   }
 
   void _handlePointerEvent(sky.PointerEvent event) {
-    HitTestResult result;
+    sky.Point position = new sky.Point(event.x, event.y);
+
+    PointerState state;
     switch(event.type) {
       case 'pointerdown':
-        result = new HitTestResult();
-        _renderView.hitTest(result, position: new sky.Point(event.x, event.y));
-        _hitTestResultForPointer[event.pointer] = result;
+        state = _createStateForPointer(event, position);
         break;
       case 'pointerup':
       case 'pointercancel':
-        result = _hitTestResultForPointer[event.pointer];
-        _hitTestResultForPointer.remove(event.pointer);
+        state = _stateForPointer[event.pointer];
+        _stateForPointer.remove(event.pointer);
         break;
       case 'pointermove':
-        result = _hitTestResultForPointer[event.pointer];
+        state = _stateForPointer[event.pointer];
         // In the case of mouse hover we won't already have a cached down.
-        if (result == null) {
-          result = new HitTestResult();
-          _renderView.hitTest(result, position: new sky.Point(event.x, event.y));
-        }
+        if (state == null)
+          state = _createStateForPointer(event, position);
         break;
     }
-    assert(result != null);
-    result.path.reversed.forEach((RenderNode node) {
-      node.handlePointer(event);
-    });
+    event.dx = position.x - state.lastPosition.x;
+    event.dy = position.y - state.lastPosition.y;
+    state.lastPosition = position;
+
+    dispatchEvent(event, state.result);
   }
 
+  void dispatchEvent(sky.Event event, HitTestResult result) {
+    assert(result != null);
+    for (RenderObject node in result.path.reversed)
+      node.handleEvent(event);
+  }
 }

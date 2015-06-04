@@ -5,8 +5,8 @@
 import 'dart:math';
 import 'dart:sky';
 import 'package:sky/framework/app.dart';
-import 'package:sky/framework/rendering/render_box.dart';
-import 'package:sky/framework/rendering/render_node.dart';
+import 'package:sky/framework/rendering/box.dart';
+import 'package:sky/framework/rendering/object.dart';
 
 // Material design colors. :p
 List<int> colors = [
@@ -32,7 +32,7 @@ class Dot {
     radius = 5 + (95 * event.pressure);
   }
 
-  void paint(RenderNodeDisplayList canvas) {
+  void paint(RenderObjectDisplayList canvas) {
     canvas.drawCircle(x, y, radius, _paint);
   }
 }
@@ -42,7 +42,7 @@ class RenderTouchDemo extends RenderBox {
 
   RenderTouchDemo();
 
-  void handlePointer(PointerEvent event) {
+  void handleEvent(sky.Event event) {
     switch (event.type) {
       case 'pointerdown':
         int color = colors[event.pointer.remainder(colors.length)];
@@ -65,7 +65,7 @@ class RenderTouchDemo extends RenderBox {
     size = constraints.constrain(new Size.infinite());
   }
 
-  void paint(RenderNodeDisplayList canvas) {
+  void paint(RenderObjectDisplayList canvas) {
     dots.forEach((_, Dot dot) {
       dot.paint(canvas);
     });

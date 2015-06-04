@@ -3,10 +3,10 @@
 // found in the LICENSE file.
 
 import 'dart:sky' as sky;
-import 'render_box.dart';
-import 'render_node.dart';
+import 'box.dart';
+import 'object.dart';
 
-class RenderInline extends RenderNode {
+class RenderInline extends RenderObject {
   String data;
 
   RenderInline(this.data);
@@ -16,7 +16,7 @@ class RenderParagraph extends RenderBox {
 
   RenderParagraph({
     String text,
-    int color
+    sky.Color color
   }) : _color = color {
     _layoutRoot.rootElement = _document.createElement('p');
     this.text = text;
@@ -31,9 +31,9 @@ class RenderParagraph extends RenderBox {
     markNeedsLayout();
   }
 
-  int _color = 0xFF000000;
-  int get color => _color;
-  void set color (int value) {
+  sky.Color _color = const sky.Color(0xFF000000);
+  sky.Color get color => _color;
+  void set color (sky.Color value) {
     if (_color != value) {
       _color = value;
       markNeedsPaint();
@@ -55,7 +55,7 @@ class RenderParagraph extends RenderBox {
     size = constraints.constrain(new sky.Size(_layoutRoot.rootElement.width, _layoutRoot.rootElement.height));
   }
 
-  void paint(RenderNodeDisplayList canvas) {
+  void paint(RenderObjectDisplayList canvas) {
     // _layoutRoot.rootElement.style['color'] = 'rgba(' + ...color... + ')';
     _layoutRoot.paint(canvas);
   }

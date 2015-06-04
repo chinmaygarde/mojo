@@ -7,15 +7,15 @@ import '../resources/unit.dart';
 import '../resources/display_list.dart';
 import 'dart:sky' as sky;
 import 'package:sky/framework/app.dart';
-import 'package:sky/framework/rendering/render_block.dart';
-import 'package:sky/framework/rendering/render_box.dart';
-import 'package:sky/framework/rendering/render_flex.dart';
+import 'package:sky/framework/rendering/block.dart';
+import 'package:sky/framework/rendering/box.dart';
+import 'package:sky/framework/rendering/flex.dart';
 
 class RenderSolidColor extends RenderDecoratedBox {
   final sky.Size desiredSize;
-  final int backgroundColor;
+  final sky.Color backgroundColor;
 
-  RenderSolidColor(int backgroundColor, { this.desiredSize: const sky.Size.infinite() })
+  RenderSolidColor(sky.Color backgroundColor, { this.desiredSize: const sky.Size.infinite() })
       : backgroundColor = backgroundColor,
         super(decoration: new BoxDecoration(backgroundColor: backgroundColor)) {
   }
@@ -28,9 +28,9 @@ class RenderSolidColor extends RenderDecoratedBox {
     size = constraints.constrain(desiredSize);
   }
 
-  void handlePointer(sky.PointerEvent event) {
+  void handleEvent(sky.Event event) {
     if (event.type == 'pointerdown')
-      decoration = new BoxDecoration(backgroundColor: 0xFFFF0000);
+      decoration = new BoxDecoration(backgroundColor: const sky.Color(0xFFFF0000));
     else if (event.type == 'pointerup')
       decoration = new BoxDecoration(backgroundColor: backgroundColor);
   }
@@ -42,46 +42,46 @@ void main() {
   initUnit();
 
   test("should flex", () {
-    RenderFlex flexRoot = new RenderFlex(direction: FlexDirection.Vertical);
+    RenderFlex flexRoot = new RenderFlex(direction: FlexDirection.vertical);
 
     RenderDecoratedBox root = new RenderDecoratedBox(
-      decoration: new BoxDecoration(backgroundColor: 0xFF000000),
+      decoration: new BoxDecoration(backgroundColor: const sky.Color(0xFF000000)),
       child: flexRoot
     );
 
-    void addFlexChildSolidColor(RenderFlex parent, int backgroundColor, { int flex: 0 }) {
+    void addFlexChildSolidColor(RenderFlex parent, sky.Color backgroundColor, { int flex: 0 }) {
       RenderSolidColor child = new RenderSolidColor(backgroundColor);
       parent.add(child);
       child.parentData.flex = flex;
     }
 
     // Yellow bar at top
-    addFlexChildSolidColor(flexRoot, 0xFFFFFF00, flex: 1);
+    addFlexChildSolidColor(flexRoot, const sky.Color(0xFFFFFF00), flex: 1);
 
     // Turquoise box
-    flexRoot.add(new RenderSolidColor(0x7700FFFF, desiredSize: new sky.Size(100.0, 100.0)));
+    flexRoot.add(new RenderSolidColor(const sky.Color(0x7700FFFF), desiredSize: new sky.Size(100.0, 100.0)));
 
     // Green and cyan render block with padding
     var renderBlock = new RenderBlock();
 
-    renderBlock.add(new RenderSolidColor(0xFF00FF00, desiredSize: new sky.Size(100.0, 50.0)));
-    renderBlock.add(new RenderSolidColor(0x7700FFFF, desiredSize: new sky.Size(50.0, 100.0)));
+    renderBlock.add(new RenderSolidColor(const sky.Color(0xFF00FF00), desiredSize: new sky.Size(100.0, 50.0)));
+    renderBlock.add(new RenderSolidColor(const sky.Color(0x7700FFFF), desiredSize: new sky.Size(50.0, 100.0)));
 
     var renderDecoratedBlock = new RenderDecoratedBox(
-      decoration: new BoxDecoration(backgroundColor: 0xFFFFFFFF),
+      decoration: new BoxDecoration(backgroundColor: const sky.Color(0xFFFFFFFF)),
       child: renderBlock
     );
 
-    flexRoot.add(new RenderPadding(const EdgeDims(10.0, 10.0, 10.0, 10.0), renderDecoratedBlock));
+    flexRoot.add(new RenderPadding(padding: const EdgeDims.all(10.0), child: renderDecoratedBlock));
 
-    var row = new RenderFlex(direction: FlexDirection.Horizontal);
+    var row = new RenderFlex(direction: FlexDirection.horizontal);
 
     // Purple and blue cells
-    addFlexChildSolidColor(row, 0x77FF00FF, flex: 1);
-    addFlexChildSolidColor(row, 0xFF0000FF, flex: 2);
+    addFlexChildSolidColor(row, const sky.Color(0x77FF00FF), flex: 1);
+    addFlexChildSolidColor(row, const sky.Color(0xFF0000FF), flex: 2);
 
     var decoratedRow = new RenderDecoratedBox(
-      decoration: new BoxDecoration(backgroundColor: 0xFF333333),
+      decoration: new BoxDecoration(backgroundColor: const sky.Color(0xFF333333)),
       child: row
     );
 

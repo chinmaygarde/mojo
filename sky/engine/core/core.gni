@@ -856,6 +856,8 @@ sky_core_files = [
   "painting/LayerDrawLooperBuilder.h",
   "painting/LayoutRoot.cpp",
   "painting/LayoutRoot.h",
+  "painting/MaskFilter.cpp",
+  "painting/MaskFilter.h",
   "painting/Paint.cpp",
   "painting/Paint.h",
   "painting/PaintingCallback.cpp",
@@ -872,6 +874,8 @@ sky_core_files = [
   "painting/Point.h",
   "painting/Rect.cpp",
   "painting/Rect.h",
+  "painting/TransferMode.cpp",
+  "painting/TransferMode.h",
   "rendering/BidiRun.h",
   "rendering/BidiRunForLine.cpp",
   "rendering/BidiRunForLine.h",
@@ -1140,6 +1144,7 @@ core_idl_files = get_path_info([
                                  "painting/Image.idl",
                                  "painting/LayerDrawLooperBuilder.idl",
                                  "painting/LayoutRoot.idl",
+                                 "painting/MaskFilter.idl",
                                  "painting/Paint.idl",
                                  "painting/PaintingCallback.idl",
                                  "painting/PaintingContext.idl",
@@ -1157,6 +1162,7 @@ core_dart_files = get_path_info([
                                   "painting/Point.dart",
                                   "painting/Rect.dart",
                                   "painting/Size.dart",
+                                  "painting/TransferMode.dart",
                                 ],
                                 "abspath")
 

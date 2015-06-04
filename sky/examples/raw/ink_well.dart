@@ -4,8 +4,8 @@
 
 import 'dart:sky' as sky;
 import 'package:sky/framework/app.dart';
-import 'package:sky/framework/rendering/render_box.dart';
-import 'package:sky/framework/rendering/render_node.dart';
+import 'package:sky/framework/rendering/box.dart';
+import 'package:sky/framework/rendering/object.dart';
 import 'package:sky/framework/animation/animated_value.dart';
 import 'package:sky/framework/animation/curves.dart';
 
@@ -31,7 +31,7 @@ class InkSplash {
     inkWell.markNeedsPaint();
   }
 
-  void paint(RenderNodeDisplayList canvas) {
+  void paint(RenderObjectDisplayList canvas) {
     int opacity = (_kInitialOpacity * (1.0 - (radius.value / _kTargetSize))).floor();
     _paint.color = new sky.Color(opacity << 24);
     canvas.drawCircle(position.x, position.y, radius.value, _paint);
@@ -41,7 +41,7 @@ class InkSplash {
 class InkWell extends RenderBox {
   final List<InkSplash> _splashes = new List<InkSplash>();
 
-  void handlePointer(sky.PointerEvent event) {
+  void handleEvent(sky.Event event) {
     switch (event.type) {
       case 'pointerdown':
         _splashes.add(new InkSplash(position: new sky.Point(event.x, event.y),
@@ -55,7 +55,7 @@ class InkWell extends RenderBox {
     size = constraints.constrain(new sky.Size.infinite());
   }
 
-  void paint(RenderNodeDisplayList canvas) {
+  void paint(RenderObjectDisplayList canvas) {
     canvas.drawRect(new sky.Rect.fromLTRB(0.0, 0.0, size.width, size.height),
                     new sky.Paint()..color = const sky.Color(0xFFCCCCCC));
     for (InkSplash splash in _splashes)
