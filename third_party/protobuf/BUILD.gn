@@ -263,6 +263,10 @@ if (current_toolchain == host_toolchain) {
     ]
     deps += [ "//build/config/sanitizers:deps" ]
   }
+} else {
+  group("protoc") {
+    # FIMXE(csg): It is not clear why this target is being built
+  }
 }
 
 copy("copy_google") {
