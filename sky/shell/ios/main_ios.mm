@@ -31,7 +31,7 @@ static void RedirectIOConnectionsToSyslog() {
 
 #ifndef NDEBUG
 
-static void debugger_hook_main(void) {
+static void SkyDebuggerHookMain(void) {
   // By default, LLDB breaks way too early. This is before libraries have been
   // loaded and __attribute__((constructor)) methods have been called. In most
   // situations, this is unnecessary. Also, breakpoint resolution is not
@@ -41,11 +41,11 @@ static void debugger_hook_main(void) {
 #endif
 
 int main(int argc, char * argv[]) {
+#ifndef NDEBUG
+  SkyDebuggerHookMain();
+#endif
   base::mac::ScopedNSAutoreleasePool pool;
   base::AtExitManager exit_manager;
-#ifndef NDEBUG
-  debugger_hook_main();
-#endif
   RedirectIOConnectionsToSyslog();
   auto result = false;
   result = base::CommandLine::Init(0, nullptr);
