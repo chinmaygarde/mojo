@@ -47,10 +47,14 @@ int main(int argc, char * argv[]) {
   debugger_hook_main();
 #endif
   RedirectIOConnectionsToSyslog();
-  base::CommandLine::Init(0, nullptr);
+  auto result = false;
+  result = base::CommandLine::Init(0, nullptr);
+  DLOG_ASSERT(result);
   InitializeLogging();
-  base::i18n::InitializeICU();
-  gfx::GLSurface::InitializeOneOff();
+  result = base::i18n::InitializeICU();
+  DLOG_ASSERT(result);
+  result = gfx::GLSurface::InitializeOneOff();
+  DLOG_ASSERT(result);
   return UIApplicationMain(argc, argv, nil,
                            NSStringFromClass([SkyAppDelegate class]));
 }
