@@ -16,12 +16,14 @@
 namespace sky {
 namespace shell {
 
-// FIXME(csg): Put this in a application owned context
-base::LazyInstance<scoped_ptr<mojo::ServiceProviderImpl>> g_service_provider = LAZY_INSTANCE_INITIALIZER;
-base::LazyInstance<scoped_ptr<mojo::NetworkServiceFactory>> g_network_service_factory = LAZY_INSTANCE_INITIALIZER;
+// FIXME(csg): Put this in an application owned context
+base::LazyInstance<scoped_ptr<mojo::ServiceProviderImpl>> g_service_provider =
+    LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<scoped_ptr<mojo::NetworkServiceFactory>>
+    g_network_service_factory = LAZY_INSTANCE_INITIALIZER;
 
 static void CreatePlatformServiceProvider(
-  mojo::InterfaceRequest<mojo::ServiceProvider> request) {
+    mojo::InterfaceRequest<mojo::ServiceProvider> request) {
   g_service_provider.Get().reset(new mojo::ServiceProviderImpl(request.Pass()));
   g_network_service_factory.Get().reset(new mojo::NetworkServiceFactory());
   g_service_provider.Get()->AddService(g_network_service_factory.Get().get());
@@ -33,10 +35,10 @@ mojo::ServiceProviderPtr CreateServiceProvider(
   mojo::MessagePipe pipe;
   auto request = mojo::MakeRequest<mojo::ServiceProvider>(pipe.handle1.Pass());
   context->ios_task_runner->PostTask(
-    FROM_HERE,
-    base::Bind(CreatePlatformServiceProvider, base::Passed(request.Pass())));
+      FROM_HERE,
+      base::Bind(CreatePlatformServiceProvider, base::Passed(request.Pass())));
   return mojo::MakeProxy(
-    mojo::InterfacePtrInfo<mojo::ServiceProvider>(pipe.handle0.Pass(), 0u));
+      mojo::InterfacePtrInfo<mojo::ServiceProvider>(pipe.handle0.Pass(), 0u));
 }
 
 }  // namespace shell

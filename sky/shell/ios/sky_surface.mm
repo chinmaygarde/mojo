@@ -40,11 +40,11 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
   sky::ViewportObserverPtr _viewport_observer;
 }
 
--(gfx::AcceleratedWidget) acceleratedWidget {
+- (gfx::AcceleratedWidget)acceleratedWidget {
   return (gfx::AcceleratedWidget)self.layer;
 }
 
--(void) layoutSubviews {
+- (void)layoutSubviews {
   [super layoutSubviews];
 
   [self configureLayerDefaults];
@@ -55,12 +55,11 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
   CGFloat scale = [UIScreen mainScreen].scale;
 
   _viewport_observer->OnViewportMetricsChanged(size.width * scale,
-                                               size.height * scale,
-                                               scale);
+                                               size.height * scale, scale);
 }
 
--(void) configureLayerDefaults {
-  CAEAGLLayer *layer = reinterpret_cast<CAEAGLLayer *>(self.layer);
+- (void)configureLayerDefaults {
+  CAEAGLLayer* layer = reinterpret_cast<CAEAGLLayer*>(self.layer);
   layer.allowsGroupOpacity = YES;
   layer.opaque = YES;
   CGFloat screenScale = [UIScreen mainScreen].scale;
@@ -69,7 +68,7 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
   layer.rasterizationScale = screenScale;
 }
 
--(void) setupPlatformViewIfNecessary {
+- (void)setupPlatformViewIfNecessary {
   if (_platformViewInitialized) {
     return;
   }
@@ -80,22 +79,22 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
   [self connectToViewportObserverAndLoad];
 }
 
--(sky::shell::PlatformViewIOS *) platformView {
-  auto view = static_cast<sky::shell::PlatformViewIOS *>(
-    sky::shell::Shell::Shared().view());
+- (sky::shell::PlatformViewIOS*)platformView {
+  auto view = static_cast<sky::shell::PlatformViewIOS*>(
+      sky::shell::Shell::Shared().view());
   DCHECK(view);
   return view;
 }
 
--(void) notifySurfaceCreation {
+- (void)notifySurfaceCreation {
   self.platformView->SurfaceCreated(self.acceleratedWidget);
 }
 
--(NSString *) skyInitialLoadURL {
+- (NSString*)skyInitialLoadURL {
   return [NSBundle mainBundle].infoDictionary[@"com.google.sky.load_url"];
 }
 
--(void) connectToViewportObserverAndLoad {
+- (void)connectToViewportObserverAndLoad {
   auto view = sky::shell::Shell::Shared().view();
   auto interface_request = mojo::GetProxy(&_viewport_observer);
   view->ConnectToViewportObserver(interface_request.Pass());
@@ -104,18 +103,17 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
   _viewport_observer->LoadURL(string);
 }
 
--(void) notifySurfaceDestruction {
+- (void)notifySurfaceDestruction {
   self.platformView->SurfaceDestroyed();
 }
 
 #pragma mark - UIResponder overrides for raw touches
 
--(void) dispatchTouches:(NSSet *) touches phase:(UITouchPhase) phase {
-
+- (void)dispatchTouches:(NSSet*)touches phase:(UITouchPhase)phase {
   auto eventType = EventTypeFromUITouchPhase(phase);
   const CGFloat scale = [UIScreen mainScreen].scale;
 
-  for (UITouch *touch in touches) {
+  for (UITouch* touch in touches) {
     auto input = sky::InputEvent::New();
     input->type = eventType;
 
@@ -134,29 +132,29 @@ static inline sky::EventType EventTypeFromUITouchPhase(UITouchPhase phase) {
   }
 }
 
--(void) touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
+- (void)touchesBegan:(NSSet*)touches withEvent:(UIEvent*)event {
   [self dispatchTouches:touches phase:UITouchPhaseBegan];
 }
 
--(void) touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
+- (void)touchesMoved:(NSSet*)touches withEvent:(UIEvent*)event {
   [self dispatchTouches:touches phase:UITouchPhaseMoved];
 }
 
--(void) touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
+- (void)touchesEnded:(NSSet*)touches withEvent:(UIEvent*)event {
   [self dispatchTouches:touches phase:UITouchPhaseEnded];
 }
 
--(void) touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {
+- (void)touchesCancelled:(NSSet*)touches withEvent:(UIEvent*)event {
   [self dispatchTouches:touches phase:UITouchPhaseCancelled];
 }
 
 #pragma mark - Misc.
 
-+(Class) layerClass {
++ (Class)layerClass {
   return [CAEAGLLayer class];
 }
 
--(void) dealloc {
+- (void)dealloc {
   [self notifySurfaceDestruction];
   [super dealloc];
 }

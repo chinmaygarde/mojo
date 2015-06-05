@@ -40,7 +40,7 @@ static void SkyDebuggerHookMain(void) {
 
 #endif
 
-int main(int argc, char * argv[]) {
+int main(int argc, char* argv[]) {
 #ifndef NDEBUG
   SkyDebuggerHookMain();
 #endif

@@ -14,11 +14,11 @@
 
 namespace gfx {
 
-static const char *OpenGLESFrameworkPath 
-    = "/System/Library/Framework/OpenGLES.framework/OpenGLES";
+static const char* OpenGLESFrameworkPath =
+    "/System/Library/Framework/OpenGLES.framework/OpenGLES";
 
-static void *OpenGLESLibraryHandle(void) {
-  static void *library_handle = NULL;
+static void* OpenGLESLibraryHandle(void) {
+  static void* library_handle = NULL;
   if (library_handle == NULL) {
     library_handle = dlopen(OpenGLESFrameworkPath, RTLD_NOW);
   }
@@ -26,7 +26,7 @@ static void *OpenGLESLibraryHandle(void) {
   return library_handle;
 }
 
-static void *OpenGLESGetProcAddress(const char *name) {
+static void* OpenGLESGetProcAddress(const char* name) {
   return dlsym(OpenGLESLibraryHandle(), name);
 }
 
@@ -37,7 +37,7 @@ void GetAllowedGLImplementations(std::vector<GLImplementation>* impls) {
 bool InitializeStaticGLBindings(GLImplementation implementation) {
   DCHECK_EQ(kGLImplementationNone, GetGLImplementation());
 
-  switch(implementation) {
+  switch (implementation) {
     case kGLImplementationAppleGL:
       SetGLGetProcAddressProc(&OpenGLESGetProcAddress);
       SetGLImplementation(kGLImplementationAppleGL);

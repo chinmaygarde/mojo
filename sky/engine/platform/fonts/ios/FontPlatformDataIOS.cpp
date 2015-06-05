@@ -32,56 +32,52 @@
 #include "sky/engine/config.h"
 #include "sky/engine/platform/fonts/FontPlatformData.h"
 #include "sky/engine/platform/fonts/FontCache.h"
- 
+
 namespace blink {
 
-void FontPlatformData::setupPaint(SkPaint* paint, GraphicsContext* context)
-    const
-{
-    paint->setAntiAlias(m_style.useAntiAlias);
-    paint->setHinting(static_cast<SkPaint::Hinting>(m_style.hintStyle));
-    paint->setEmbeddedBitmapText(m_style.useBitmaps);
-    paint->setAutohinted(m_style.useAutoHint);
-    if (m_style.useAntiAlias)
-        paint->setLCDRenderText(m_style.useSubpixelRendering);
-    paint->setSubpixelText(m_style.useSubpixelPositioning);
-    const float ts = m_textSize >= 0 ? m_textSize : 12;
-    paint->setTextSize(SkFloatToScalar(ts));
-    paint->setTypeface(m_typeface.get());
-    paint->setFakeBoldText(m_syntheticBold);
-    paint->setTextSkewX(m_syntheticItalic ? -SK_Scalar1 / 4 : 0);
+void FontPlatformData::setupPaint(SkPaint* paint,
+                                  GraphicsContext* context) const {
+  paint->setAntiAlias(m_style.useAntiAlias);
+  paint->setHinting(static_cast<SkPaint::Hinting>(m_style.hintStyle));
+  paint->setEmbeddedBitmapText(m_style.useBitmaps);
+  paint->setAutohinted(m_style.useAutoHint);
+  if (m_style.useAntiAlias)
+    paint->setLCDRenderText(m_style.useSubpixelRendering);
+  paint->setSubpixelText(m_style.useSubpixelPositioning);
+  const float ts = m_textSize >= 0 ? m_textSize : 12;
+  paint->setTextSize(SkFloatToScalar(ts));
+  paint->setTypeface(m_typeface.get());
+  paint->setFakeBoldText(m_syntheticBold);
+  paint->setTextSkewX(m_syntheticItalic ? -SK_Scalar1 / 4 : 0);
 }
 
 void FontPlatformData::querySystemForRenderStyle(
-                                                bool useSkiaSubpixelPositioning)
-{
-    if (!m_style.useHinting)
-        m_style.hintStyle = SkPaint::kNo_Hinting;
-    else if (m_style.useHinting == FontRenderStyle::NoPreference)
-        m_style.hintStyle = SkPaint::kNormal_Hinting;
-    if (m_style.useBitmaps == FontRenderStyle::NoPreference)
-        m_style.useBitmaps = true;
-    if (m_style.useAutoHint == FontRenderStyle::NoPreference)
-        m_style.useAutoHint = true;
-    if (m_style.useAntiAlias == FontRenderStyle::NoPreference)
-        m_style.useAntiAlias = true;
-    if (m_style.useSubpixelRendering == FontRenderStyle::NoPreference)
-        m_style.useSubpixelRendering = false;
-    if (m_style.useSubpixelPositioning == FontRenderStyle::NoPreference)
-        m_style.useSubpixelPositioning = useSkiaSubpixelPositioning;
+    bool useSkiaSubpixelPositioning) {
+  if (!m_style.useHinting)
+    m_style.hintStyle = SkPaint::kNo_Hinting;
+  else if (m_style.useHinting == FontRenderStyle::NoPreference)
+    m_style.hintStyle = SkPaint::kNormal_Hinting;
+  if (m_style.useBitmaps == FontRenderStyle::NoPreference)
+    m_style.useBitmaps = true;
+  if (m_style.useAutoHint == FontRenderStyle::NoPreference)
+    m_style.useAutoHint = true;
+  if (m_style.useAntiAlias == FontRenderStyle::NoPreference)
+    m_style.useAntiAlias = true;
+  if (m_style.useSubpixelRendering == FontRenderStyle::NoPreference)
+    m_style.useSubpixelRendering = false;
+  if (m_style.useSubpixelPositioning == FontRenderStyle::NoPreference)
+    m_style.useSubpixelPositioning = useSkiaSubpixelPositioning;
 }
 
-bool FontPlatformData::defaultUseSubpixelPositioning()
-{
-    return false;
+bool FontPlatformData::defaultUseSubpixelPositioning() {
+  return false;
 }
 
-void FontCache::getFontForCharacter(UChar32 c, 
-                                    const char* preferredLocale,
-                                    FontCache::PlatformFallbackFont* 
-                                        fallbackFont)
-{
-    DLOG(INFO) << "Unimplemented font fallback accessor";
+void FontCache::getFontForCharacter(
+    UChar32 c,
+    const char* preferredLocale,
+    FontCache::PlatformFallbackFont* fallbackFont) {
+  DLOG(INFO) << "Unimplemented font fallback accessor";
 }
 
-} // namespace blink
+}  // namespace blink

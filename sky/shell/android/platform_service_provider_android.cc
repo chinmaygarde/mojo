@@ -23,14 +23,14 @@ void CreatePlatformServiceProvider(
       request.PassMessagePipe().release().value());
 }
 
-} // namespace
+}  // namespace
 
 bool RegisterPlatformServiceProvider(JNIEnv* env) {
   return RegisterNativesImpl(env);
 }
 
 mojo::ServiceProviderPtr CreateServiceProvider(
-        ServiceProviderContext* context) {
+    ServiceProviderContext* context) {
   mojo::MessagePipe pipe;
   context->java_task_runner->PostTask(
       FROM_HERE,

@@ -15,35 +15,34 @@
   base::LazyInstance<scoped_ptr<base::MessageLoop>> _main_message_loop;
 }
 
--(BOOL) application:(UIApplication *)application
-didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-
+- (BOOL)application:(UIApplication*)application
+    didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
   [self setupSkyShell];
   [self setupViewport];
 
   return YES;
 }
 
--(void) setupSkyShell {
+- (void)setupSkyShell {
   [self adoptPlatformRunLoop];
 
-  auto service_provider_context = make_scoped_ptr(
-    new sky::shell::ServiceProviderContext(
-      _main_message_loop.Get()->task_runner()));
+  auto service_provider_context =
+      make_scoped_ptr(new sky::shell::ServiceProviderContext(
+          _main_message_loop.Get()->task_runner()));
   sky::shell::Shell::Init(service_provider_context.Pass());
 }
 
--(void) adoptPlatformRunLoop {
+- (void)adoptPlatformRunLoop {
   _main_message_loop.Get().reset(new base::MessageLoopForUI);
   // One cannot start the message loop on the platform main thread. Instead,
   // we attach to the CFRunLoop
   base::MessageLoopForUI::current()->Attach();
 }
 
--(void) setupViewport {
+- (void)setupViewport {
   CGRect frame = [UIScreen mainScreen].bounds;
-  UIWindow *window = [[UIWindow alloc] initWithFrame:frame];
-  SkyViewController *viewController = [[SkyViewController alloc] init];
+  UIWindow* window = [[UIWindow alloc] initWithFrame:frame];
+  SkyViewController* viewController = [[SkyViewController alloc] init];
   window.rootViewController = viewController;
   [viewController release];
   self.window = window;

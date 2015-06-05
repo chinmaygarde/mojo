@@ -25,10 +25,9 @@ class ServiceProviderContext {
 
   scoped_refptr<base::SingleThreadTaskRunner> java_task_runner;
 #elif defined(OS_IOS)
-  //FIXME(csg): DRY+Clean this up
-  ServiceProviderContext(
-      scoped_refptr<base::SingleThreadTaskRunner> runner)
-    : ios_task_runner(runner.Pass()) {}
+  // FIXME(csg): DRY+Clean this up
+  ServiceProviderContext(scoped_refptr<base::SingleThreadTaskRunner> runner)
+      : ios_task_runner(runner.Pass()) {}
 
   scoped_refptr<base::SingleThreadTaskRunner> ios_task_runner;
 #else

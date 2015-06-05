@@ -13,22 +13,23 @@
 
 namespace gfx {
 
-#define WIDGET_AS_LAYER (reinterpret_cast<CAEAGLLayer *>(widget_))
-#define CAST_CONTEXT(c) (reinterpret_cast<EAGLContext *>((c)))
+#define WIDGET_AS_LAYER (reinterpret_cast<CAEAGLLayer*>(widget_))
+#define CAST_CONTEXT(c) (reinterpret_cast<EAGLContext*>((c)))
 
 GLSurfaceIOS::GLSurfaceIOS(gfx::AcceleratedWidget widget)
-    : widget_(widget), 
+    : widget_(widget),
       framebuffer_(GL_NONE),
       colorbuffer_(GL_NONE),
       last_configured_size_(),
-      framebuffer_setup_complete_(false) {}
+      framebuffer_setup_complete_(false) {
+}
 
 #ifndef NDEBUG
 static void GLSurfaceIOS_AssertFramebufferCompleteness(void) {
   GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-  DLOG_IF(FATAL, status != GL_FRAMEBUFFER_COMPLETE) 
-    << "Framebuffer incomplete on GLSurfaceIOS::MakeCurrent: "
-    << GLEnums::GetStringEnum(status);
+  DLOG_IF(FATAL, status != GL_FRAMEBUFFER_COMPLETE)
+      << "Framebuffer incomplete on GLSurfaceIOS::MakeCurrent: "
+      << GLEnums::GetStringEnum(status);
 }
 #else
 #define GLSurfaceIOS_AssertFramebufferCompleteness(...)
@@ -36,7 +37,7 @@ static void GLSurfaceIOS_AssertFramebufferCompleteness(void) {
 
 bool GLSurfaceIOS::OnMakeCurrent(GLContext* context) {
   Size new_size = GetSize();
-  
+
   if (new_size == last_configured_size_) {
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     GLSurfaceIOS_AssertFramebufferCompleteness();
@@ -53,7 +54,7 @@ bool GLSurfaceIOS::OnMakeCurrent(GLContext* context) {
 
   auto context_handle = context->GetHandle();
   DCHECK(context_handle);
-  
+
   BOOL res = [CAST_CONTEXT(context_handle) renderbufferStorage:GL_RENDERBUFFER
                                                   fromDrawable:WIDGET_AS_LAYER];
 
@@ -89,10 +90,8 @@ void GLSurfaceIOS::SetupFramebufferIfNecessary() {
   glBindRenderbuffer(GL_RENDERBUFFER, colorbuffer_);
   DCHECK(glGetError() == GL_NO_ERROR);
 
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-                            GL_COLOR_ATTACHMENT0,
-                            GL_RENDERBUFFER,
-                            colorbuffer_);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_RENDERBUFFER, colorbuffer_);
   DCHECK(glGetError() == GL_NO_ERROR);
 
   WIDGET_AS_LAYER.drawableProperties = @{
@@ -110,10 +109,10 @@ bool GLSurfaceIOS::SwapBuffers() {
 
 void GLSurfaceIOS::Destroy() {
   DCHECK(glGetError() == GL_NO_ERROR);
-  
+
   glDeleteFramebuffers(1, &framebuffer_);
   glDeleteRenderbuffers(1, &colorbuffer_);
-  
+
   DCHECK(glGetError() == GL_NO_ERROR);
 }
 
@@ -127,7 +126,7 @@ gfx::Size GLSurfaceIOS::GetSize() {
 }
 
 void* GLSurfaceIOS::GetHandle() {
-  return (void *)widget_;
+  return (void*)widget_;
 }
 
 bool GLSurface::InitializeOneOffInternal() {
@@ -140,7 +139,6 @@ bool GLSurface::InitializeOneOffInternal() {
 // static
 scoped_refptr<GLSurface> GLSurface::CreateViewGLSurface(
     gfx::AcceleratedWidget window) {
-
   DCHECK(window != kNullAcceleratedWidget);
   scoped_refptr<GLSurfaceIOS> surface = new GLSurfaceIOS(window);
 

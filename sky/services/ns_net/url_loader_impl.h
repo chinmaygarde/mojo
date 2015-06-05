@@ -9,7 +9,6 @@
 namespace mojo {
 
 class URLLoaderImpl : public URLLoader {
-
  public:
   explicit URLLoaderImpl(InterfaceRequest<URLLoader> request);
   ~URLLoaderImpl();
@@ -20,8 +19,8 @@ class URLLoaderImpl : public URLLoader {
 
  private:
   StrongBinding<URLLoader> binding_;
-  void *connection_delegate_;
-  void *pending_connection_;
+  void* connection_delegate_;
+  void* pending_connection_;
 };
 
-} // namespace mojo
+}  // namespace mojo

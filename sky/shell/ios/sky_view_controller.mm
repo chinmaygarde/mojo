@@ -10,11 +10,11 @@
 
 @implementation SkyViewController
 
--(void) loadView {
-  SkySurface *surface = [[SkySurface alloc] init];
+- (void)loadView {
+  SkySurface* surface = [[SkySurface alloc] init];
 
-  surface.autoresizingMask = UIViewAutoresizingFlexibleWidth 
-                           | UIViewAutoresizingFlexibleHeight;
+  surface.autoresizingMask =
+      UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
   self.view = surface;
 

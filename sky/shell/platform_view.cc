@@ -16,15 +16,13 @@ PlatformView::PlatformView(const PlatformView::Config& config)
 }
 
 PlatformView::~PlatformView() {
-
 }
 
 void PlatformView::ConnectToViewportObserver(
     mojo::InterfaceRequest<ViewportObserver> request) {
   config_.ui_task_runner->PostTask(
-      FROM_HERE,
-      base::Bind(&UIDelegate::ConnectToViewportObserver, config_.ui_delegate,
-                 base::Passed(&request)));
+      FROM_HERE, base::Bind(&UIDelegate::ConnectToViewportObserver,
+                            config_.ui_delegate, base::Passed(&request)));
 }
 
 void PlatformView::SurfaceWasCreated() {

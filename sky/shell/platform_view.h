@@ -26,7 +26,6 @@ class PlatformView {
       mojo::InterfaceRequest<ViewportObserver> request);
 
  protected:
-
   void SurfaceWasCreated();
   void SurfaceWasDestroyed();
 

@@ -42,13 +42,12 @@
 namespace blink {
 
 #if ENABLE(DART_STRICT)
-static const char* kCheckedModeArgs[] = {
-  "--enable_asserts",
-  "--enable_type_checks",
-  "--error_on_bad_type",
-  "--error_on_bad_override",
+static const char* kCheckedModeArgs[] = {"--enable_asserts",
+                                         "--enable_type_checks",
+                                         "--error_on_bad_type",
+                                         "--error_on_bad_override",
 #if WTF_OS_IOS
-  "--no-profile"
+                                         "--no-profile"
 #endif
 };
 #endif

@@ -4,8 +4,8 @@
 
 #import <UIKit/UIKit.h>
 
-@interface SkyAppDelegate : UIResponder <UIApplicationDelegate>
+@interface SkyAppDelegate : UIResponder<UIApplicationDelegate>
 
-@property (strong, nonatomic) UIWindow *window;
+@property(strong, nonatomic) UIWindow* window;
 
 @end

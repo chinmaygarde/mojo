@@ -16,14 +16,14 @@
 #include <OpenGLES/ES2/gl.h>
 #include <QuartzCore/CALayer.h>
 
-#define CAST_CONTEXT (reinterpret_cast<EAGLContext *>(context_))
+#define CAST_CONTEXT (reinterpret_cast<EAGLContext*>(context_))
 
 namespace gfx {
 
-GLContextIOS::GLContextIOS(GLShareGroup* share_group) 
+GLContextIOS::GLContextIOS(GLShareGroup* share_group)
     : GLContextReal(share_group) {
-  EAGLContext *context = [[EAGLContext alloc] 
-                             initWithAPI:kEAGLRenderingAPIOpenGLES2];
+  EAGLContext* context =
+      [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
   DCHECK(context);
   context_ = reinterpret_cast<uintptr_t>(context);
 }
@@ -32,9 +32,8 @@ GLContextIOS::~GLContextIOS() {
   Destroy();
 }
 
-bool GLContextIOS::Initialize(GLSurface* compatible_surface, 
+bool GLContextIOS::Initialize(GLSurface* compatible_surface,
                               GpuPreference gpu_preference) {
-
   return CAST_CONTEXT != nullptr && compatible_surface != nullptr;
 }
 
@@ -48,9 +47,9 @@ bool GLContextIOS::MakeCurrent(GLSurface* surface) {
   if (!result) {
     return false;
   }
-  
+
   SetRealGLApi();
-  
+
   if (!InitializeDynamicBindings()) {
     return false;
   }
@@ -63,7 +62,7 @@ bool GLContextIOS::MakeCurrent(GLSurface* surface) {
 }
 
 void GLContextIOS::ReleaseCurrent(GLSurface* surface) {
-  [EAGLContext setCurrentContext: nil];
+  [EAGLContext setCurrentContext:nil];
 }
 
 bool GLContextIOS::IsCurrent(GLSurface* surface) {
@@ -75,11 +74,10 @@ void* GLContextIOS::GetHandle() {
 }
 
 void GLContextIOS::OnSetSwapInterval(int interval) {
-  
 }
 
 std::string GLContextIOS::GetExtensions() {
-  return (const char *)glGetString(GL_EXTENSIONS);
+  return (const char*)glGetString(GL_EXTENSIONS);
 }
 
 bool GLContextIOS::WasAllocatedUsingRobustnessExtension() {
@@ -101,13 +99,12 @@ scoped_refptr<GLContext> GLContext::CreateGLContext(
     GLShareGroup* share_group,
     GLSurface* compatible_surface,
     GpuPreference gpu_preference) {
-  
   TRACE_EVENT0("gpu", "GLContext::CreateGLContext");
-  
+
   scoped_refptr<GLContext> context;
 
   context = new GLContextIOS(share_group);
-  
+
   if (!context->Initialize(compatible_surface, gpu_preference))
     return nullptr;
 

@@ -12,12 +12,10 @@ namespace shell {
 
 class PlatformViewIOS : public PlatformView {
  public:
-
   void SurfaceCreated(gfx::AcceleratedWidget widget);
   void SurfaceDestroyed(void);
 
  private:
-  
   DISALLOW_COPY_AND_ASSIGN(PlatformViewIOS);
 };
 
