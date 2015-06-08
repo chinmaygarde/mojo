@@ -10,7 +10,7 @@
 #include "base/bind.h"
 #include "base/logging.h"
 #include "mojo/android/system/core_impl.h"
-#include "sky/shell/android/platform_service_provider.h"
+#include "sky/shell/android/platform_service_provider_android.h"
 #include "sky/shell/android/platform_view.h"
 #include "sky/shell/android/sky_main.h"
 #include "sky/shell/android/tracing_controller.h"

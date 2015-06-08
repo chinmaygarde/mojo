@@ -29,10 +29,10 @@ if (is_android) {
 
   generate_jni("jni_headers") {
     sources = [
-      "org/domokit/sky/shell/JavaServiceProvider.java",
-      "org/domokit/sky/shell/PlatformView.java",
-      "org/domokit/sky/shell/SkyMain.java",
-      "org/domokit/sky/shell/TracingController.java",
+      "android/org/domokit/sky/shell/PlatformServiceProvider.java",
+      "android/org/domokit/sky/shell/PlatformView.java",
+      "android/org/domokit/sky/shell/SkyMain.java",
+      "android/org/domokit/sky/shell/TracingController.java",
     ]
     jni_package = "sky/shell"
   }
