@@ -249,6 +249,8 @@ config("feature_flags") {
     defines += [ "CHROMIUM_BUILD" ]
   }
   if (is_ios) {
+    # TODO(csg): This is an admittedly poor workaround for the use of disallowed
+    # mprotect calls in the memory allocator.
     defines += [
       "MEMORY_TOOL_REPLACES_ALLOCATOR",
       "MEMORY_SANITIZER_INITIAL_SIZE",
@@ -362,6 +364,8 @@ config("default_libs") {
       "Security.framework",
     ]
   } else if (is_ios) {
+    # The libraries listed here will be specified for both the target and the
+    # host. Only the common ones should be listed here.
     libs = [
       "CoreFoundation.framework",
       "CoreGraphics.framework",
