@@ -32,7 +32,7 @@ bool RegisterPlatformServiceProvider(JNIEnv* env) {
 mojo::ServiceProviderPtr CreateServiceProvider(
     ServiceProviderContext* context) {
   mojo::MessagePipe pipe;
-  context->java_task_runner->PostTask(
+  context->platform_task_runner->PostTask(
       FROM_HERE,
       base::Bind(CreatePlatformServiceProvider,
                  base::Passed(mojo::MakeRequest<mojo::ServiceProvider>(

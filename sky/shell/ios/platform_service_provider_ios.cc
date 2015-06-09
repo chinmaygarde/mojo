@@ -34,7 +34,7 @@ mojo::ServiceProviderPtr CreateServiceProvider(
   DCHECK(context);
   mojo::MessagePipe pipe;
   auto request = mojo::MakeRequest<mojo::ServiceProvider>(pipe.handle1.Pass());
-  context->ios_task_runner->PostTask(
+  context->platform_task_runner->PostTask(
       FROM_HERE,
       base::Bind(CreatePlatformServiceProvider, base::Passed(request.Pass())));
   return mojo::MakeProxy(

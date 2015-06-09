@@ -29,16 +29,16 @@ import org.chromium.mojom.sky.ViewportObserver;
  * A view containing Sky
  */
 @JNINamespace("sky::shell")
-public class PlatformView extends SurfaceView
+public class PlatformViewAndroid extends SurfaceView
         implements GestureProvider.OnGestureListener {
-    private static final String TAG = "PlatformView";
+    private static final String TAG = "PlatformViewAndroid";
 
     private long mNativePlatformView;
     private ViewportObserver.Proxy mViewportObserver;
     private final SurfaceHolder.Callback mSurfaceCallback;
     private GestureProvider mGestureProvider;
 
-    public PlatformView(Context context) {
+    public PlatformViewAndroid(Context context) {
         super(context);
 
         setFocusable(true);
@@ -183,7 +183,7 @@ public class PlatformView extends SurfaceView
     }
 
     private static native long nativeAttach(int inputObserverHandle);
-    private static native void nativeDetach(long nativePlatformView);
-    private static native void nativeSurfaceCreated(long nativePlatformView, Surface surface);
-    private static native void nativeSurfaceDestroyed(long nativePlatformView);
+    private static native void nativeDetach(long nativePlatformViewAndroid);
+    private static native void nativeSurfaceCreated(long nativePlatformViewAndroid, Surface surface);
+    private static native void nativeSurfaceDestroyed(long nativePlatformViewAndroid);
 }

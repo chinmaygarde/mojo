@@ -11,7 +11,7 @@
 #include "base/logging.h"
 #include "mojo/android/system/core_impl.h"
 #include "sky/shell/android/platform_service_provider_android.h"
-#include "sky/shell/android/platform_view.h"
+#include "sky/shell/android/platform_view_android.h"
 #include "sky/shell/android/sky_main.h"
 #include "sky/shell/android/tracing_controller.h"
 
@@ -20,7 +20,7 @@ namespace {
 base::android::RegistrationMethod kSkyRegisteredMethods[] = {
     {"CoreImpl", mojo::android::RegisterCoreImpl},
     {"PlatformServiceProvider", sky::shell::RegisterPlatformServiceProvider},
-    {"PlatformView", sky::shell::PlatformView::Register},
+    {"PlatformViewAndroid", sky::shell::PlatformViewAndroid::Register},
     {"SkyMain", sky::shell::RegisterSkyMain},
     {"TracingController", sky::shell::RegisterTracingController},
 };

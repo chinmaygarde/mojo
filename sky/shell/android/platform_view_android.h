@@ -15,16 +15,12 @@ namespace shell {
 class PlatformViewAndroid : public PlatformView {
  public:
   static bool Register(JNIEnv* env);
+  ~PlatformViewAndroid() override;
 
   // Called from Java
   void Detach(JNIEnv* env, jobject obj);
   void SurfaceCreated(JNIEnv* env, jobject obj, jobject jsurface);
   void SurfaceDestroyed(JNIEnv* env, jobject obj);
-  void SurfaceSetSize(JNIEnv* env,
-                      jobject obj,
-                      jint width,
-                      jint height,
-                      jfloat density);
 
  private:
   void ReleaseWindow();

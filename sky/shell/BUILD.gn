@@ -30,7 +30,7 @@ if (is_android) {
   generate_jni("jni_headers") {
     sources = [
       "android/org/domokit/sky/shell/PlatformServiceProvider.java",
-      "android/org/domokit/sky/shell/PlatformView.java",
+      "android/org/domokit/sky/shell/PlatformViewAndroid.java",
       "android/org/domokit/sky/shell/SkyMain.java",
       "android/org/domokit/sky/shell/TracingController.java",
     ]
@@ -44,6 +44,8 @@ if (is_android) {
       "android/platform_service_provider_android.h",
       "platform_view.cc",
       "platform_view.h",
+      "android/platform_view_android.cc",
+      "android/platform_view_android.h",
       "android/sky_main.cc",
       "android/sky_main.h",
       "android/tracing_controller.cc",
@@ -81,7 +83,7 @@ if (is_android) {
     java_files = [
       "android/org/domokit/sky/shell/GestureProvider.java",
       "android/org/domokit/sky/shell/PlatformServiceProvider.java",
-      "android/org/domokit/sky/shell/PlatformView.java",
+      "android/org/domokit/sky/shell/PlatformViewAndroid.java",
       "android/org/domokit/sky/shell/ServiceFactory.java",
       "android/org/domokit/sky/shell/ServiceRegistry.java",
       "android/org/domokit/sky/shell/SkyActivity.java",
