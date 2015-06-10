@@ -77,7 +77,7 @@ void GLContextIOS::OnSetSwapInterval(int interval) {
 }
 
 std::string GLContextIOS::GetExtensions() {
-  return (const char*)glGetString(GL_EXTENSIONS);
+  return reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
 }
 
 bool GLContextIOS::WasAllocatedUsingRobustnessExtension() {
