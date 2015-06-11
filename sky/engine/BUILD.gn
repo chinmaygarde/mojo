@@ -55,6 +55,13 @@ config("config") {
   if (is_posix && gcc_version >= 49) {
     cflags += [ "-Wno-unused-but-set-variable" ]
   }
+
+  if (is_ios) {
+    # Work around mprotect calls
+    defines += [
+      "MEMORY_TOOL_REPLACES_ALLOCATOR",
+    ]
+  }
 }
 
 # The follow configs apply to all targets except for unit tests, which rely on
