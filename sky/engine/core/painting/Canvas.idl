@@ -10,21 +10,25 @@ interface Canvas {
   readonly attribute float width;
 
   void save();
-  void saveLayer(Rect bounds /* optional */, Paint paint /* optional */);
+  // TODO(jackson): Paint should be optional, but making it optional causes crash
+  void saveLayer(Rect bounds, /* optional */ Paint paint);
   void restore();
 
   void translate(float dx, float dy);
   void scale(float sx, float sy);
-  void rotateDegrees(float degrees);
+  void rotate(float radians);
   void skew(float sx, float sy);
   void concat(Float32List matrix4);
 
   void clipRect(Rect rect);
+  void clipRRect(RRect rrect);
+  void clipPath(Path path);
 
+  void drawLine(float x0, float y0, float x1, float y1, Paint paint);
   void drawPicture(Picture picture);
-
   void drawPaint(Paint paint);
   void drawRect(Rect rect, Paint paint);
+  void drawRRect(RRect rrect, Paint paint);
   void drawOval(Rect rect, Paint paint);
   void drawCircle(float x, float y, float radius, Paint paint);
   void drawPath(Path path, Paint paint);

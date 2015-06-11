@@ -4,7 +4,7 @@
 
 group("services") {
   deps = [
-    "//services/authenticating_url_loader",
+    "//services/authenticating_url_loader_interceptor",
     "//services/authentication",
     "//services/clipboard",
     "//services/dart",
@@ -18,6 +18,7 @@ group("services") {
     "//services/keyboard_native",
     "//services/kiosk_wm",
     "//services/native_viewport",
+    "//services/prediction",
     "//services/reaper",
     "//services/url_response_disk_cache",
     "//services/surfaces",

@@ -24,10 +24,13 @@ void main() {
 
     context.translate(mid.x, mid.y);
     paint.color = const Color.fromARGB(128, 255, 0, 255);
-    context.rotateDegrees(45.0);
+    context.rotate(math.PI/4.0);
 
+    Gradient yellowBlue = new Gradient.linear(
+        [new Point(-radius, -radius), new Point(0.0, 0.0)],
+        [const Color(0xFFFFFF00), const Color(0xFF0000FF)]);
     context.drawRect(new Rect.fromLTRB(-radius, -radius, radius, radius),
-                     paint);
+                     new Paint()..setShader(yellowBlue));
 
     // Scale x and y by 0.5.
     var scaleMatrix = new Float32List.fromList([
@@ -52,17 +55,22 @@ void main() {
             (Paint layerPaint) {
           layerPaint.color = const Color.fromARGB(128, 255, 255, 0);
           layerPaint.setColorFilter(
-              new ColorFilter(const Color.fromARGB(128, 0, 0, 255),
-                              TransferMode.srcInMode));
+              new ColorFilter.mode(const Color.fromARGB(128, 0, 0, 255),
+                                   TransferMode.srcInMode));
           layerPaint.setMaskFilter(
-              new MaskFilter.Blur(BlurStyle.normal, 3.0, highQuality: true));
+              new MaskFilter.blur(BlurStyle.normal, 3.0, highQuality: true));
         })
         ..addLayerOnTop(
             new DrawLooperLayerInfo()
               ..setOffset(const Point(75.0, 75.0))
-              ..setColorMode(TransferMode.srcMode),
+              ..setColorMode(TransferMode.srcMode)
+              ..setPaintBits(-1),
             (Paint layerPaint) {
-          layerPaint.color = const Color.fromARGB(128, 255, 0, 0);
+          Gradient redYellow = new Gradient.radial(
+              new Point(0.0, 0.0), radius/3.0,
+              [const Color(0xFFFFFF00), const Color(0xFFFF0000)],
+              null, TileMode.mirror);
+          layerPaint.setShader(redYellow);
         })
         ..addLayerOnTop(
             new DrawLooperLayerInfo()..setOffset(const Point(225.0, 75.0)),

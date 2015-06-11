@@ -11,8 +11,10 @@ enum SpriteBoxTransformMode {
 
 class SpriteBox extends RenderBox {
 
+  // Member variables
+
   // Root node for drawing
-  TransformNode _rootNode;
+  Node _rootNode;
 
   // Tracking of frame rate and updates
   double _lastTimeStamp;
@@ -22,9 +24,17 @@ class SpriteBox extends RenderBox {
   double _systemWidth;
   double _systemHeight;
 
-  SpriteBox(TransformNode rootNode, [SpriteBoxTransformMode mode = SpriteBoxTransformMode.nativePoints, double width=1024.0, double height=1024.0]) {
+  // Setup
+
+  SpriteBox(Node rootNode, [SpriteBoxTransformMode mode = SpriteBoxTransformMode.nativePoints, double width=1024.0, double height=1024.0]) {
+    assert(rootNode != null);
+    assert(rootNode._spriteBox == null);
+
     // Setup root node
     _rootNode = rootNode;
+
+    // Assign SpriteBox reference to all the nodes
+    _addSpriteBoxReference(_rootNode);
 
     // Setup transform mode
     transformMode = mode;
@@ -34,20 +44,30 @@ class SpriteBox extends RenderBox {
     _scheduleTick();
   }
 
+  void _addSpriteBoxReference(Node node) {
+    node._spriteBox = this;
+    for (Node child in node._children) {
+      _addSpriteBoxReference(child);
+    }
+  }
+
+  // Properties
+
   double get systemWidth => _systemWidth;
   double get systemHeight => _systemHeight;
 
+  Node get rootNode => _rootNode;
+
   void performLayout() {
-    size = constraints.constrain(new Size.infinite());
+    size = constraints.constrain(Size.infinite);
   }
 
-  void handleEvent(Event event) {
-    switch (event.type) {
-      case 'pointerdown':
-        print("pointerdown");
-        break;
-    }
+  // Event handling
+
+  void handleEvent(Event event, BoxHitTestEntry entry) {
   }
+
+  // Rendering
 
   void paint(RenderObjectDisplayList canvas) {
     // Move to correct coordinate space before drawing
@@ -89,7 +109,6 @@ class SpriteBox extends RenderBox {
         scaleX = size.width/_systemWidth;
         scaleY = scaleX;
         _systemHeight = size.height/scaleX;
-        print("systemHeight: $_systemHeight");
         break;
       case SpriteBoxTransformMode.fixedHeight:
         scaleY = size.height/_systemHeight;
@@ -114,6 +133,8 @@ class SpriteBox extends RenderBox {
     canvas.restore();
   }
 
+  // Updates
+
   int _animationId = 0;
 
   void _scheduleTick() {
@@ -135,5 +156,30 @@ class SpriteBox extends RenderBox {
 
     _rootNode.update(delta);
     _scheduleTick();
+  }
+
+  // Hit tests
+
+  List<Node> findNodesAtPosition(Point position) {
+    assert(position != null);
+
+    List<Node> nodes = [];
+
+    // Traverse the render tree and find objects at the position
+    _addNodesAtPosition(_rootNode, position, nodes);
+
+    return nodes;
+  }
+
+  _addNodesAtPosition(Node node, Point position, List<Node> list) {
+    // Visit children first
+    for (Node child in node.children) {
+      _addNodesAtPosition(child, position, list);
+    }
+    // Do the hit test
+    Point posInNodeSpace = node.convertPointToNodeSpace(position);
+    if (node.hitTest(posInNodeSpace)) {
+      list.add(node);
+    }
   }
 }

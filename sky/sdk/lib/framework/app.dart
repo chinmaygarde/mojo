@@ -9,35 +9,48 @@ import 'scheduler.dart' as scheduler;
 
 class PointerState {
   HitTestResult result;
-  sky.Point lastPosition;
+  Point lastPosition;
 
   PointerState({ this.result, this.lastPosition });
 }
 
 class AppView {
 
-  AppView(RenderBox root) {
+  AppView([RenderBox root = null]) {
+    assert(_app == null);
+    _app = this;
+
     sky.view.setEventCallback(_handleEvent);
+    sky.view.setMetricsChangedCallback(_handleMetricsChanged);
     scheduler.init();
     scheduler.addPersistentFrameCallback(_beginFrame);
 
     _renderView = new RenderView(child: root);
     _renderView.attach();
-    _renderView.layout(new ViewConstraints(width: sky.view.width,
-                                           height: sky.view.height));
+    _renderView.rootConstraints = _viewConstraints;
+    _renderView.scheduleInitialLayout();
 
-    scheduler.ensureVisualUpdate();
+    assert(_app == this);
   }
+
+  static AppView _app; // used to enforce that we're a singleton
 
   RenderView _renderView;
 
+  ViewConstraints get _viewConstraints =>
+      new ViewConstraints(width: sky.view.width, height: sky.view.height);
+
   Map<int, PointerState> _stateForPointer = new Map<int, PointerState>();
+
+  Function onFrame;
 
   RenderBox get root => _renderView.child;
   void set root(RenderBox value) {
     _renderView.child = value;
   }
   void _beginFrame(double timeStamp) {
+    if (onFrame != null)
+      onFrame();
     RenderObject.flushLayout();
     _renderView.paintFrame();
   }
@@ -47,12 +60,16 @@ class AppView {
       _handlePointerEvent(event);
     } else if (event is sky.GestureEvent) {
       HitTestResult result = new HitTestResult();
-      _renderView.hitTest(result, position: new sky.Point(event.x, event.y));
+      _renderView.hitTest(result, position: new Point(event.x, event.y));
       dispatchEvent(event, result);
     }
   }
 
-  PointerState _createStateForPointer(sky.PointerEvent event, sky.Point position) {
+  void _handleMetricsChanged() {
+    _renderView.rootConstraints = _viewConstraints;
+  }
+
+  PointerState _createStateForPointer(sky.PointerEvent event, Point position) {
     HitTestResult result = new HitTestResult();
     _renderView.hitTest(result, position: position);
     PointerState state = new PointerState(result: result, lastPosition: position);
@@ -61,7 +78,7 @@ class AppView {
   }
 
   void _handlePointerEvent(sky.PointerEvent event) {
-    sky.Point position = new sky.Point(event.x, event.y);
+    Point position = new Point(event.x, event.y);
 
     PointerState state;
     switch(event.type) {
@@ -89,7 +106,14 @@ class AppView {
 
   void dispatchEvent(sky.Event event, HitTestResult result) {
     assert(result != null);
-    for (RenderObject node in result.path.reversed)
-      node.handleEvent(event);
+    for (HitTestEntry entry in result.path.reversed)
+      entry.target.handleEvent(event, entry);
   }
+
+  String toString() => 'Render Tree:\n${_renderView}';
+
+  void debugDumpRenderTree() {
+    toString().split('\n').forEach(print);
+  }
+  
 }

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "math.h"
+
 #include "sky/engine/config.h"
 #include "sky/engine/core/painting/Canvas.h"
 
@@ -67,12 +69,12 @@ void Canvas::scale(float sx, float sy)
     m_canvas->scale(sx, sy);
 }
 
-void Canvas::rotateDegrees(float degrees)
+void Canvas::rotate(float radians)
 {
     if (!m_canvas)
         return;
     ASSERT(m_displayList->isRecording());
-    m_canvas->rotate(degrees);
+    m_canvas->rotate(radians * 180.0/M_PI);
 }
 
 void Canvas::skew(float sx, float sy)
@@ -115,6 +117,31 @@ void Canvas::clipRect(const Rect& rect)
     m_canvas->clipRect(rect.sk_rect);
 }
 
+void Canvas::clipRRect(const RRect* rrect)
+{
+    if (!m_canvas)
+        return;
+    ASSERT(m_displayList->isRecording());
+    m_canvas->clipRRect(rrect->rrect());
+}
+
+void Canvas::clipPath(const CanvasPath* path)
+{
+    if (!m_canvas)
+        return;
+    ASSERT(m_displayList->isRecording());
+    m_canvas->clipPath(path->path());
+}
+
+void Canvas::drawLine(float x0, float y0, float x1, float y1, const Paint* paint)
+{
+    if (!m_canvas)
+        return;
+    ASSERT(paint);
+    ASSERT(m_displayList->isRecording());
+    m_canvas->drawLine(x0, y0, x1, y1, paint->paint());
+}
+
 void Canvas::drawPicture(Picture* picture)
 {
     if (!m_canvas)
@@ -140,6 +167,16 @@ void Canvas::drawRect(const Rect& rect, const Paint* paint)
     ASSERT(paint);
     ASSERT(m_displayList->isRecording());
     m_canvas->drawRect(rect.sk_rect, paint->paint());
+}
+
+void Canvas::drawRRect(const RRect* rrect, const Paint* paint)
+{
+    if (!m_canvas)
+        return;
+    ASSERT(rrect);
+    ASSERT(paint);
+    ASSERT(m_displayList->isRecording());
+    m_canvas->drawRRect(rrect->rrect(), paint->paint());
 }
 
 void Canvas::drawOval(const Rect& rect, const Paint* paint)

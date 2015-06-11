@@ -6,10 +6,12 @@ part of dart.sky;
 
 /// Holds 2 floating-point coordinates.
 class Point {
+  const Point(this.x, this.y);
+
   final double x;
   final double y;
 
-  const Point(this.x, this.y);
+  static const Point origin = const Point(0.0, 0.0);
 
   bool operator ==(other) => other is Point && x == other.x && y == other.y;
   Size operator -(Point other) => new Size(x - other.x, y - other.y);

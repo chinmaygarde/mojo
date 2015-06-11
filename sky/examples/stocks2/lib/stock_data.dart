@@ -4,6 +4,7 @@
 
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:sky/framework/net/fetch.dart';
 
 // Snapshot from http://www.nasdaq.com/screening/company-list.aspx
@@ -55,11 +56,11 @@ class StockDataFetcher {
   final StockDataCallback callback;
 
   StockDataFetcher(this.callback) {
-    // _fetchNextChunk(); // TODO(ianh): crashes
+    _fetchNextChunk();
   }
 
   void _fetchNextChunk() {
-    fetch('data/stock_data_${_currentChunk++}.json').then((Response response) {
+    fetchBody('../data/stock_data_${_currentChunk++}.json').then((Response response) {
       String json = response.bodyAsString();
       JsonDecoder decoder = new JsonDecoder();
 

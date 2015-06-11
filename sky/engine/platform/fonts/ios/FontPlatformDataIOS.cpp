@@ -77,7 +77,7 @@ void FontCache::getFontForCharacter(
     UChar32 c,
     const char* preferredLocale,
     FontCache::PlatformFallbackFont* fallbackFont) {
-  DLOG(INFO) << "Unimplemented font fallback accessor";
+  DCHECK(false);
 }
 
 }  // namespace blink

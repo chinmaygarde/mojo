@@ -102,20 +102,26 @@ public class PlatformViewAndroid extends SurfaceView
 
     private int getTypeForAction(int maskedAction) {
         // Primary pointer:
-        if (maskedAction == MotionEvent.ACTION_DOWN)
+        if (maskedAction == MotionEvent.ACTION_DOWN) {
             return EventType.POINTER_DOWN;
-        if (maskedAction == MotionEvent.ACTION_UP)
+        }
+        if (maskedAction == MotionEvent.ACTION_UP) {
             return EventType.POINTER_UP;
+        }
         // Secondary pointer:
-        if (maskedAction == MotionEvent.ACTION_POINTER_DOWN)
+        if (maskedAction == MotionEvent.ACTION_POINTER_DOWN) {
             return EventType.POINTER_DOWN;
-        if (maskedAction == MotionEvent.ACTION_POINTER_UP)
+        }
+        if (maskedAction == MotionEvent.ACTION_POINTER_UP) {
             return EventType.POINTER_UP;
+        }
         // All pointers:
-        if (maskedAction == MotionEvent.ACTION_MOVE)
+        if (maskedAction == MotionEvent.ACTION_MOVE) {
             return EventType.POINTER_MOVE;
-        if (maskedAction == MotionEvent.ACTION_CANCEL)
+        }
+        if (maskedAction == MotionEvent.ACTION_CANCEL) {
             return EventType.POINTER_CANCEL;
+        }
         return EventType.UNKNOWN;
     }
 
@@ -184,6 +190,7 @@ public class PlatformViewAndroid extends SurfaceView
 
     private static native long nativeAttach(int inputObserverHandle);
     private static native void nativeDetach(long nativePlatformViewAndroid);
-    private static native void nativeSurfaceCreated(long nativePlatformViewAndroid, Surface surface);
+    private static native void nativeSurfaceCreated(long nativePlatformViewAndroid,
+                                                    Surface surface);
     private static native void nativeSurfaceDestroyed(long nativePlatformViewAndroid);
 }

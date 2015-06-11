@@ -9,6 +9,9 @@
 
 tests = [
   {
+    "test": "mojo:authenticating_url_loader_interceptor_apptests",
+  },
+  {
     "test": "mojo:clipboard_apptests",
   },
   {
@@ -37,8 +40,15 @@ tests = [
     "shell-args": ["--args-for=mojo:native_viewport_service --use-headless-config --use-osmesa"],
   },
   {
+    "test": "mojo:texture_apptests",
+    "shell-args": ["--args-for=mojo:native_viewport_service --use-headless-config --use-osmesa"],
+  },
+  {
     "test": "mojo:mojo_view_manager_client_apptests",
     "shell-args": ["--args-for=mojo:native_viewport_service --use-headless-config --use-osmesa"],
+  },
+  {
+    "test": "mojo:prediction_apptests",
   },
   {
     "test": "mojo:view_manager_service_apptests",

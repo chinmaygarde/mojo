@@ -6,6 +6,7 @@
 #define SKY_ENGINE_CORE_PAINTING_PAINT_H_
 
 #include "sky/engine/core/painting/CanvasColor.h"
+#include "sky/engine/core/painting/PaintingStyle.h"
 #include "sky/engine/core/painting/TransferMode.h"
 #include "sky/engine/tonic/dart_wrappable.h"
 #include "sky/engine/wtf/PassRefPtr.h"
@@ -17,6 +18,7 @@ namespace blink {
 class DrawLooper;
 class ColorFilter;
 class MaskFilter;
+class Shader;
 
 class Paint : public RefCounted<Paint>, public DartWrappable {
     DEFINE_WRAPPERTYPEINFO();
@@ -33,6 +35,9 @@ public:
     SkColor color() const { return m_paint.getColor(); }
     void setColor(SkColor color) { m_paint.setColor(color); }
 
+    SkScalar strokeWidth() const { return m_paint.getStrokeWidth(); }
+    void setStrokeWidth(SkScalar strokeWidth) { m_paint.setStrokeWidth(strokeWidth); }
+
     void setARGB(unsigned a, unsigned r, unsigned g, unsigned b)
     {
         m_paint.setARGB(a, r, g, b);
@@ -40,11 +45,12 @@ public:
     void setDrawLooper(DrawLooper* looper);
     void setColorFilter(ColorFilter* filter);
     void setMaskFilter(MaskFilter* filter);
+    void setShader(Shader* shader);
+    void setStyle(SkPaint::Style style);
+    void setTransferMode(SkXfermode::Mode transfer_mode);
 
     const SkPaint& paint() const { return m_paint; }
     void setPaint(const SkPaint& paint) { m_paint = paint; }
-
-    void setTransferMode(SkXfermode::Mode transfer_mode);
 
 private:
     Paint();

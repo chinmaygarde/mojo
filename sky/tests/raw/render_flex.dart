@@ -15,20 +15,32 @@ class RenderSolidColor extends RenderDecoratedBox {
   final sky.Size desiredSize;
   final sky.Color backgroundColor;
 
-  RenderSolidColor(sky.Color backgroundColor, { this.desiredSize: const sky.Size.infinite() })
+  RenderSolidColor(sky.Color backgroundColor, { this.desiredSize: sky.Size.infinite })
       : backgroundColor = backgroundColor,
         super(decoration: new BoxDecoration(backgroundColor: backgroundColor)) {
   }
 
-  sky.Size getIntrinsicDimensions(BoxConstraints constraints) {
-    return constraints.constrain(desiredSize);
+  double getMinIntrinsicWidth(BoxConstraints constraints) {
+    return constraints.constrainWidth(desiredSize.width);
+  }
+
+  double getMaxIntrinsicWidth(BoxConstraints constraints) {
+    return constraints.constrainWidth(desiredSize.width);
+  }
+
+  double getMinIntrinsicHeight(BoxConstraints constraints) {
+    return constraints.constrainHeight(desiredSize.height);
+  }
+
+  double getMaxIntrinsicHeight(BoxConstraints constraints) {
+    return constraints.constrainHeight(desiredSize.height);
   }
 
   void performLayout() {
     size = constraints.constrain(desiredSize);
   }
 
-  void handleEvent(sky.Event event) {
+  void handleEvent(sky.Event event, BoxHitTestEntry entry) {
     if (event.type == 'pointerdown')
       decoration = new BoxDecoration(backgroundColor: const sky.Color(0xFFFF0000));
     else if (event.type == 'pointerup')

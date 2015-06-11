@@ -6,9 +6,7 @@ import("//mojo/public/dart/rules.gni")
 
 dart_pkg("mojom") {
   sources = [
-    "AUTHORS",
     "CHANGELOG.md",
-    "LICENSE",
     "README.md",
     "lib/generate.dart",
     "pubspec.yaml",

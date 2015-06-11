@@ -10,45 +10,50 @@
 namespace mojo {
 
 void NetworkServiceImpl::CreateURLLoader(
-    mojo::InterfaceRequest<mojo::URLLoader> loader) {
+    InterfaceRequest<URLLoader> loader) {
   new URLLoaderImpl(loader.Pass());
 }
 
 void NetworkServiceImpl::GetCookieStore(
-    mojo::InterfaceRequest<mojo::CookieStore> cookie_store) {
+    InterfaceRequest<CookieStore> cookie_store) {
   DCHECK(false);
 }
 
 void NetworkServiceImpl::CreateWebSocket(
-    mojo::InterfaceRequest<mojo::WebSocket> socket) {
+    InterfaceRequest<WebSocket> socket) {
   DCHECK(false);
 }
 
 void NetworkServiceImpl::CreateTCPBoundSocket(
-    mojo::NetAddressPtr local_address,
-    mojo::InterfaceRequest<mojo::TCPBoundSocket> bound_socket,
+    NetAddressPtr local_address,
+    InterfaceRequest<TCPBoundSocket> bound_socket,
     const CreateTCPBoundSocketCallback& callback) {
   DCHECK(false);
 }
 
 void NetworkServiceImpl::CreateTCPConnectedSocket(
-    mojo::NetAddressPtr remote_address,
-    mojo::ScopedDataPipeConsumerHandle send_stream,
-    mojo::ScopedDataPipeProducerHandle receive_stream,
-    mojo::InterfaceRequest<mojo::TCPConnectedSocket> client_socket,
+    NetAddressPtr remote_address,
+    ScopedDataPipeConsumerHandle send_stream,
+    ScopedDataPipeProducerHandle receive_stream,
+    InterfaceRequest<TCPConnectedSocket> client_socket,
     const CreateTCPConnectedSocketCallback& callback) {
   DCHECK(false);
 }
 
 void NetworkServiceImpl::CreateUDPSocket(
-    mojo::InterfaceRequest<mojo::UDPSocket> socket) {
+    InterfaceRequest<UDPSocket> socket) {
   DCHECK(false);
 }
 
 void NetworkServiceImpl::CreateHttpServer(
-    mojo::NetAddressPtr local_address,
-    mojo::HttpServerDelegatePtr delegate,
+    NetAddressPtr local_address,
+    HttpServerDelegatePtr delegate,
     const CreateHttpServerCallback& callback) {
+  DCHECK(false);
+}
+
+void NetworkServiceImpl::RegisterURLLoaderInterceptor(
+                        URLLoaderInterceptorFactoryPtr factory) {
   DCHECK(false);
 }
 

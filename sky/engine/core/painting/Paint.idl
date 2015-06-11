@@ -5,6 +5,7 @@
 [
   Constructor(),
 ] interface Paint {
+  attribute float strokeWidth;
   attribute boolean isAntiAlias;
   attribute Color color;
 
@@ -13,5 +14,7 @@
   void setDrawLooper(DrawLooper looper);
   void setColorFilter(ColorFilter filter);
   void setMaskFilter(MaskFilter filter);
+  void setShader(Shader shader);
+  void setStyle(PaintingStyle style);
   void setTransferMode(TransferMode transferMode);
 };

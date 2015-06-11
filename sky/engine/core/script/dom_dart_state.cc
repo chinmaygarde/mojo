@@ -16,14 +16,17 @@ DOMDartState::DOMDartState(Document* document, const KURL& url)
 }
 
 DOMDartState::~DOMDartState() {
+  // We've already destroyed the isolate. Revoke any weak ptrs held by
+  // DartPersistentValues so they don't try to enter the destroyed isolate to
+  // clean themselves up.
+  weak_factory_.InvalidateWeakPtrs();
 }
 
 void DOMDartState::DidSetIsolate() {
   Scope dart_scope(this);
-  x_handle_.Set(this, Dart_NewStringFromCString("x"));
-  y_handle_.Set(this, Dart_NewStringFromCString("y"));
-  index_handle_.Set(this, Dart_NewStringFromCString("index"));
-  value_handle_.Set(this, Dart_NewStringFromCString("_value"));
+  x_handle_.Set(this, ToDart("x"));
+  y_handle_.Set(this, ToDart("y"));
+  value_handle_.Set(this, ToDart("_value"));
 
   Dart_Handle sky_library = DartBuiltin::LookupLibrary("dart:sky");
   color_class_.Set(this, Dart_GetType(sky_library, ToDart("Color"), 0, 0));

@@ -38,6 +38,16 @@ public class SkyActivity extends Activity {
         mTracingController = new TracingController(this);
     }
 
+    /**
+     * @see android.app.Activity#onDestroy()
+     */
+    @Override
+    protected void onDestroy() {
+        // Do we need to shut down Sky too?
+        mTracingController.stop();
+        super.onDestroy();
+    }
+
     public void loadUrl(String url) {
         mView.loadUrl(url);
     }

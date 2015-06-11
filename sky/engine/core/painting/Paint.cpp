@@ -8,11 +8,13 @@
 #include "sky/engine/core/painting/ColorFilter.h"
 #include "sky/engine/core/painting/DrawLooper.h"
 #include "sky/engine/core/painting/MaskFilter.h"
+#include "sky/engine/core/painting/Shader.h"
 
 namespace blink {
 
 Paint::Paint()
 {
+    setIsAntiAlias(true);
 }
 
 Paint::~Paint()
@@ -35,6 +37,17 @@ void Paint::setMaskFilter(MaskFilter* filter)
 {
     ASSERT(filter);
     m_paint.setMaskFilter(filter->filter());
+}
+
+void Paint::setShader(Shader* shader)
+{
+    ASSERT(shader);
+    m_paint.setShader(shader->shader());
+}
+
+void Paint::setStyle(SkPaint::Style style)
+{
+    m_paint.setStyle(style);
 }
 
 void Paint::setTransferMode(SkXfermode::Mode transfer_mode)

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:sky' as sky;
 import 'box.dart';
+import 'dart:math' as math;
 import 'object.dart';
 
 class BlockParentData extends BoxParentData with ContainerParentDataMixin<RenderBox> { }
@@ -26,45 +26,75 @@ class RenderBlock extends RenderBox with ContainerRenderObjectMixin<RenderBox, B
       child.parentData = new BlockParentData();
   }
 
-  // override this to report what dimensions you would have if you
-  // were laid out with the given constraints this can walk the tree
-  // if it must, but it should be as cheap as possible; just get the
-  // dimensions and nothing else (e.g. don't calculate hypothetical
-  // child positions if they're not needed to determine dimensions)
-  sky.Size getIntrinsicDimensions(BoxConstraints constraints) {
-    double height = 0.0;
-    double width = constraints.constrainWidth(constraints.maxWidth);
-    assert(width < double.INFINITY);
+  double getMinIntrinsicWidth(BoxConstraints constraints) {
+    double width = 0.0;
+    BoxConstraints innerConstraints = new BoxConstraints(
+        minWidth: constraints.minWidth, maxWidth: constraints.maxWidth);
     RenderBox child = firstChild;
-    BoxConstraints innerConstraints = new BoxConstraints(minWidth: width,
-                                                         maxWidth: width);
     while (child != null) {
-      height += child.getIntrinsicDimensions(innerConstraints).height;
-      assert(child.parentData is BlockParentData);
+      width = math.max(width, child.getMinIntrinsicWidth(innerConstraints));
       child = child.parentData.nextSibling;
     }
+    return width;
+  }
 
-    return new sky.Size(width, constraints.constrainHeight(height));
+  double getMaxIntrinsicWidth(BoxConstraints constraints) {
+    double width = 0.0;
+    BoxConstraints innerConstraints = new BoxConstraints(
+        minWidth: constraints.minWidth, maxWidth: constraints.maxWidth);
+    RenderBox child = firstChild;
+    while (child != null) {
+      width = math.max(width, child.getMaxIntrinsicWidth(innerConstraints));
+      child = child.parentData.nextSibling;
+    }
+    return width;
+  }
+
+  BoxConstraints _getInnerConstraintsForWidth(double width) {
+    return new BoxConstraints(minWidth: width, maxWidth: width);
+  }
+
+  double _getIntrinsicHeight(BoxConstraints constraints) {
+    double height = 0.0;
+    double width = constraints.constrainWidth(constraints.maxWidth);
+    BoxConstraints innerConstraints = _getInnerConstraintsForWidth(width);
+    RenderBox child = firstChild;
+    while (child != null) {
+      double childHeight = child.getMinIntrinsicHeight(innerConstraints);
+      assert(childHeight == child.getMaxIntrinsicHeight(innerConstraints));
+      height += childHeight;
+      child = child.parentData.nextSibling;
+    }
+    return height;
+  }
+
+  double getMinIntrinsicHeight(BoxConstraints constraints) {
+    return _getIntrinsicHeight(constraints);
+  }
+
+  double getMaxIntrinsicHeight(BoxConstraints constraints) {
+    return _getIntrinsicHeight(constraints);
   }
 
   void performLayout() {
     assert(constraints is BoxConstraints);
     double width = constraints.constrainWidth(constraints.maxWidth);
+    BoxConstraints innerConstraints = _getInnerConstraintsForWidth(width);
     double y = 0.0;
     RenderBox child = firstChild;
     while (child != null) {
-      child.layout(new BoxConstraints(minWidth: width, maxWidth: width), parentUsesSize: true);
+      child.layout(innerConstraints, parentUsesSize: true);
       assert(child.parentData is BlockParentData);
-      child.parentData.position = new sky.Point(0.0, y);
+      child.parentData.position = new Point(0.0, y);
       y += child.size.height;
       child = child.parentData.nextSibling;
     }
-    size = new sky.Size(width, constraints.constrainHeight(y));
+    size = new Size(width, constraints.constrainHeight(y));
     assert(size.width < double.INFINITY);
     assert(size.height < double.INFINITY);
   }
 
-  void hitTestChildren(HitTestResult result, { sky.Point position }) {
+  void hitTestChildren(HitTestResult result, { Point position }) {
     defaultHitTestChildren(result, position: position);
   }
 

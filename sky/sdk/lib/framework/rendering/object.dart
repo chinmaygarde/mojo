@@ -4,8 +4,9 @@
 
 import '../node.dart';
 import '../scheduler.dart' as scheduler;
-import 'dart:math' as math;
 import 'dart:sky' as sky;
+import 'dart:sky' show Point, Size, Rect, Color, Paint, Path;
+export 'dart:sky' show Point, Size, Rect, Color, Paint, Path;
 
 class ParentData {
   void detach() {
@@ -16,20 +17,14 @@ class ParentData {
     // override this in subclasses to merge in data from other into this
     assert(other.runtimeType == this.runtimeType);
   }
+  String toString() => '<none>';
 }
 
 const kLayoutDirections = 4;
 
-double clamp({double min: 0.0, double value: 0.0, double max: double.INFINITY}) {
-  assert(min != null);
-  assert(value != null);
-  assert(max != null);
-  return math.max(min, math.min(max, value));
-}
-
 class RenderObjectDisplayList extends sky.PictureRecorder {
   RenderObjectDisplayList(double width, double height) : super(width, height);
-  void paintChild(RenderObject child, sky.Point position) {
+  void paintChild(RenderObject child, Point position) {
     translate(position.x, position.y);
     child.paint(this);
     translate(-position.x, -position.y);
@@ -43,10 +38,10 @@ abstract class RenderObject extends AbstractNode {
   // parentData is only for use by the RenderObject that actually lays this
   // node out, and any other nodes who happen to know exactly what
   // kind of node that is.
-  ParentData parentData;
+  dynamic parentData; // TODO(ianh): change the type of this back to ParentData once the analyzer is cleverer
   void setParentData(RenderObject child) {
     // override this to setup .parentData correctly for your class
-    assert(!_debugDoingLayout);
+    assert(!debugDoingLayout);
     assert(!debugDoingPaint);
     if (child.parentData is! ParentData)
       child.parentData = new ParentData();
@@ -54,7 +49,7 @@ abstract class RenderObject extends AbstractNode {
 
   void adoptChild(RenderObject child) { // only for use by subclasses
     // call this whenever you decide a node is a child
-    assert(!_debugDoingLayout);
+    assert(!debugDoingLayout);
     assert(!debugDoingPaint);
     assert(child != null);
     setParentData(child);
@@ -62,7 +57,7 @@ abstract class RenderObject extends AbstractNode {
     markNeedsLayout();
   }
   void dropChild(RenderObject child) { // only for use by subclasses
-    assert(!_debugDoingLayout);
+    assert(!debugDoingLayout);
     assert(!debugDoingPaint);
     assert(child != null);
     assert(child.parentData != null);
@@ -77,6 +72,7 @@ abstract class RenderObject extends AbstractNode {
 
   static List<RenderObject> _nodesNeedingLayout = new List<RenderObject>();
   static bool _debugDoingLayout = false;
+  static bool get debugDoingLayout => _debugDoingLayout;
   bool _needsLayout = true;
   bool get needsLayout => _needsLayout;
   RenderObject _relayoutSubtreeRoot;
@@ -97,7 +93,7 @@ abstract class RenderObject extends AbstractNode {
     return true;
   }
   void markNeedsLayout() {
-    assert(!_debugDoingLayout);
+    assert(!debugDoingLayout);
     assert(!debugDoingPaint);
     if (_needsLayout) {
       assert(debugAncestorsAlreadyMarkedNeedsLayout());
@@ -106,12 +102,22 @@ abstract class RenderObject extends AbstractNode {
     _needsLayout = true;
     assert(_relayoutSubtreeRoot != null);
     if (_relayoutSubtreeRoot != this) {
+      final parent = this.parent; // TODO(ianh): Remove this once the analyzer is cleverer
       assert(parent is RenderObject);
       parent.markNeedsLayout();
+      assert(parent == this.parent); // TODO(ianh): Remove this once the analyzer is cleverer
     } else {
       _nodesNeedingLayout.add(this);
       scheduler.ensureVisualUpdate();
     }
+  }
+  void scheduleInitialLayout() {
+    assert(attached);
+    assert(parent == null);
+    assert(_relayoutSubtreeRoot == null);
+    _relayoutSubtreeRoot = this;
+    _nodesNeedingLayout.add(this);
+    scheduler.ensureVisualUpdate();
   }
   static void flushLayout() {
     _debugDoingLayout = true;
@@ -135,11 +141,13 @@ abstract class RenderObject extends AbstractNode {
     _needsLayout = false;
   }
   void layout(dynamic constraints, { bool parentUsesSize: false }) {
+    final parent = this.parent; // TODO(ianh): Remove this once the analyzer is cleverer
     RenderObject relayoutSubtreeRoot;
     if (!parentUsesSize || sizedByParent || parent is! RenderObject)
       relayoutSubtreeRoot = this;
     else
       relayoutSubtreeRoot = parent._relayoutSubtreeRoot;
+    assert(parent == this.parent); // TODO(ianh): Remove this once the analyzer is cleverer
     if (!needsLayout && constraints == _constraints && relayoutSubtreeRoot == _relayoutSubtreeRoot)
       return;
     _constraints = constraints;
@@ -149,6 +157,7 @@ abstract class RenderObject extends AbstractNode {
     performLayout();
     _needsLayout = false;
     markNeedsPaint();
+    assert(parent == this.parent); // TODO(ianh): Remove this once the analyzer is cleverer
   }
   bool get sizedByParent => false; // return true if the constraints are the only input to the sizing algorithm (in particular, child nodes have no impact)
   void performResize(); // set the local dimensions, using only the constraints (only called if sizedByParent is true)
@@ -194,7 +203,7 @@ abstract class RenderObject extends AbstractNode {
 
   // EVENTS
 
-  void handleEvent(sky.Event event) {
+  void handleEvent(sky.Event event, HitTestEntry entry) {
     // override this if you have a client, to hand it to the client
     // override this if you want to do anything with the event
   }
@@ -205,7 +214,7 @@ abstract class RenderObject extends AbstractNode {
   // RenderObject subclasses are expected to have a method like the
   // following (with the signature being whatever passes for coordinates
   // for this particular class):
-  // bool hitTest(HitTestResult result, { sky.Point position }) {
+  // bool hitTest(HitTestResult result, { Point position }) {
   //   // If (x,y) is not inside this node, then return false. (You
   //   // can assume that the given coordinate is inside your
   //   // dimensions. You only need to check this if you're an
@@ -219,22 +228,48 @@ abstract class RenderObject extends AbstractNode {
   // }
   // You must not add yourself to /result/ if you return false.
 
+
+  String toString([String prefix = '']) {
+    String header = '${runtimeType}';
+    if (_relayoutSubtreeRoot != null && _relayoutSubtreeRoot != this) {
+      int count = 1;
+      RenderObject target = parent;
+      while (target != null && target != _relayoutSubtreeRoot) {
+        target = target.parent as RenderObject;
+        count += 1;
+      }
+      header += ' relayoutSubtreeRoot=up$count';
+    }
+    if (_needsLayout)
+      header += ' NEEDS-LAYOUT';
+    if (!attached)
+      header += ' DETACHED';
+    prefix += '  ';
+    return '${header}\n${debugDescribeSettings(prefix)}${debugDescribeChildren(prefix)}';
+  }
+  String debugDescribeSettings(String prefix) => '${prefix}parentData: ${parentData}\n';
+  String debugDescribeChildren(String prefix) => '';
+
+}
+
+class HitTestEntry {
+  const HitTestEntry(this.target);
+
+  final RenderObject target;
 }
 
 class HitTestResult {
-  final List<RenderObject> path = new List<RenderObject>();
+  final List<HitTestEntry> path = new List<HitTestEntry>();
 
-  RenderObject get result => path.first;
-
-  void add(RenderObject node) {
-    path.add(node);
+  void add(HitTestEntry data) {
+    path.add(data);
   }
 }
 
 
 // GENERIC MIXIN FOR RENDER NODES WITH ONE CHILD
 
-abstract class RenderObjectWithChildMixin<ChildType extends RenderObject> {
+abstract class RenderObjectWithChildMixin<ChildType extends RenderObject> implements RenderObject {
   ChildType _child;
   ChildType get child => _child;
   void set child (ChildType value) {
@@ -251,6 +286,11 @@ abstract class RenderObjectWithChildMixin<ChildType extends RenderObject> {
   void detachChildren() {
     if (_child != null)
       _child.detach();
+  }
+  String debugDescribeChildren(String prefix) {
+    if (child != null)
+      return '${prefix}child: ${child.toString(prefix)}';
+    return '';
   }
 }
 
@@ -400,5 +440,17 @@ abstract class ContainerRenderObjectMixin<ChildType extends RenderObject, Parent
   ChildType childAfter(ChildType child) {
     assert(child.parentData is ParentDataType);
     return child.parentData.nextSibling;
+  }
+
+  String debugDescribeChildren(String prefix) {
+    String result = '';
+    int count = 1;
+    ChildType child = _firstChild;
+    while (child != null) {
+      result += '${prefix}child ${count}: ${child.toString(prefix)}';
+      count += 1;
+      child = child.parentData.nextSibling;
+    }
+    return result;
   }
 }

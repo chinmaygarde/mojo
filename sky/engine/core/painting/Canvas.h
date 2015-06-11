@@ -8,6 +8,7 @@
 #include "sky/engine/core/painting/CanvasPath.h"
 #include "sky/engine/core/painting/Paint.h"
 #include "sky/engine/core/painting/Picture.h"
+#include "sky/engine/core/painting/RRect.h"
 #include "sky/engine/core/painting/Rect.h"
 #include "sky/engine/platform/graphics/DisplayList.h"
 #include "sky/engine/tonic/dart_wrappable.h"
@@ -31,20 +32,24 @@ public:
     float height() const { return m_size.height(); }
 
     void save();
-    void saveLayer(const Rect& bounds, const Paint* paint);
+    void saveLayer(const Rect& bounds, const Paint* paint = nullptr);
     void restore();
 
     void translate(float dx, float dy);
     void scale(float sx, float sy);
-    void rotateDegrees(float degrees);
+    void rotate(float radians);
     void skew(float sx, float sy);
     void concat(const Float32List& matrix4);
 
     void clipRect(const Rect& rect);
+    void clipRRect(const RRect* rrect);
+    void clipPath(const CanvasPath* path);
 
+    void drawLine(float x0, float y0, float x1, float y1, const Paint* paint);
     void drawPicture(Picture* picture);
     void drawPaint(const Paint* paint);
     void drawRect(const Rect& rect, const Paint* paint);
+    void drawRRect(const RRect* rrect, const Paint* paint);
     void drawOval(const Rect& rect, const Paint* paint);
     void drawCircle(float x, float y, float radius, const Paint* paint);
     void drawPath(const CanvasPath* path, const Paint* paint);

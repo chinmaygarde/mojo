@@ -12,7 +12,6 @@ if (current_cpu == "mipsel" || current_cpu == "mips64el") {
   import("//build/config/mips.gni")
 }
 
-
 # The list of Skia defines that are to be set for chromium.
 gypi_skia_defines =
     exec_script("//build/gypi_to_gn.py",
@@ -249,9 +248,7 @@ config("skia_library_config") {
       "-Wno-deprecated-declarations",
     ]
 
-    libs = [
-      "ImageIO.framework",
-    ]
+    libs = [ "ImageIO.framework" ]
   }
 }
 
@@ -520,7 +517,7 @@ component("skia") {
     set_sources_assignment_filter(sources_assignment_filter)
     deps += [
       "//third_party/expat",
-      "//third_party/freetype",
+      "//third_party/freetype-android:freetype",
       "//third_party/android_tools:cpu_features",
     ]
   }

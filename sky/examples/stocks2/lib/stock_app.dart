@@ -2,36 +2,29 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:sky/framework/components2/tool_bar.dart';
-import 'package:sky/framework/components2/drawer.dart';
-// import 'package:sky/framework/components2/drawer_header.dart';
-// import 'package:sky/framework/components2/floating_action_button.dart';
-// import 'package:sky/framework/components2/icon.dart';
-import 'package:sky/framework/components2/icon_button.dart';
-// import 'package:sky/framework/components2/input.dart';
-import 'package:sky/framework/components2/menu_divider.dart';
-import 'package:sky/framework/components2/menu_item.dart';
-// import 'package:sky/framework/components2/modal_overlay.dart';
-// import 'package:sky/framework/components2/popup_menu.dart';
-// import 'package:sky/framework/components2/radio.dart';
-import 'package:sky/framework/components2/scaffold.dart';
-import 'package:sky/framework/fn2.dart';
-import 'package:sky/framework/theme2/typography.dart' as typography;
+import 'package:sky/framework/editing2/input.dart';
 import 'package:sky/framework/theme2/colors.dart' as colors;
-import 'stock_data.dart';
-import 'package:sky/framework/rendering/box.dart';
-// import 'stock_list.dart';
-// import 'stock_menu.dart';
+import 'package:sky/framework/widgets/drawer.dart';
+import 'package:sky/framework/widgets/drawer_header.dart';
+import 'package:sky/framework/widgets/floating_action_button.dart';
+import 'package:sky/framework/widgets/icon.dart';
+import 'package:sky/framework/widgets/icon_button.dart';
+import 'package:sky/framework/widgets/menu_divider.dart';
+import 'package:sky/framework/widgets/menu_item.dart';
+import 'package:sky/framework/widgets/modal_overlay.dart';
+import 'package:sky/framework/widgets/popup_menu.dart';
+import 'package:sky/framework/widgets/radio.dart';
+import 'package:sky/framework/widgets/scaffold.dart';
+import 'package:sky/framework/widgets/tool_bar.dart';
+import 'package:sky/framework/widgets/wrappers.dart';
 
-import 'dart:async';
-import 'dart:sky' as sky;
+import 'stock_data.dart';
+import 'stock_list.dart';
+import 'stock_menu.dart';
 
 enum StockMode { optimistic, pessimistic }
 
 class StocksApp extends App {
-
-  // static final Style _searchBarStyle = new Style('''
-  //   background-color: ${Grey[50]};''');
 
   // static final Style _titleStyle = new Style('''
   //   ${typography.white.title};''');
@@ -80,22 +73,22 @@ class StocksApp extends App {
     });
   }
 
-  // PopupMenuController _menuController;
+  PopupMenuController _menuController;
 
   void _handleMenuShow(_) {
     setState(() {
-      // _menuController = new PopupMenuController();
-      // _menuController.open();
+      _menuController = new PopupMenuController();
+      _menuController.open();
     });
   }
 
   void _handleMenuHide(_) {
     setState(() {
-      // _menuController.close().then((_) {
-      //   setState(() {
-      //     _menuController = null;
-      //   });
-      // });
+      _menuController.close().then((_) {
+        setState(() {
+          _menuController = null;
+        });
+      });
     });
   }
 
@@ -113,14 +106,12 @@ class StocksApp extends App {
     });
   }
 
-  // static FlexBoxParentData _flex1 = new FlexBoxParentData()..flex = 1;
-
   Drawer buildDrawer() {
     return new Drawer(
       controller: _drawerController,
       level: 3,
       children: [
-        // new DrawerHeader(children: [new Text('Stocks')]),
+        new DrawerHeader(children: [new Text('Stocks')]),
         new MenuItem(
           key: 'Stock list',
           icon: 'action/assessment',
@@ -130,23 +121,23 @@ class StocksApp extends App {
           icon: 'action/account_balance',
           children: [new Text('Account Balance')]),
         new MenuDivider(key: 'div1'),
-        // new MenuItem(
-        //   key: 'Optimistic Menu Item',
-        //   icon: 'action/thumb_up',
-        //   onGestureTap: (event) => _handleStockModeChange(StockMode.optimistic),
-        //   children: [
-        //     new ParentDataNode(new Text('Optimistic'), _flex1),
-        //     new Radio(key: 'optimistic-radio', value: StockMode.optimistic, groupValue: _stockMode, onChanged: _handleStockModeChange)
-        //   ]),
-        // new MenuItem(
-        //   key: 'Pessimistic Menu Item',
-        //   icon: 'action/thumb_down',
-        //   onGestureTap: (event) => _handleStockModeChange(StockMode.pessimistic),
-        //   children: [
-        //     new ParentDataNode(new Text('Pessimistic'), _flex1),
-        //     new Radio(key: 'pessimistic-radio', value: StockMode.pessimistic, groupValue: _stockMode, onChanged: _handleStockModeChange)
-        //   ]),
-        // new MenuDivider(key: 'div2'),
+        new MenuItem(
+          key: 'Optimistic Menu Item',
+          icon: 'action/thumb_up',
+          onGestureTap: (event) => _handleStockModeChange(StockMode.optimistic),
+          children: [
+            new FlexExpandingChild(new Text('Optimistic'), flex: 1),
+            new Radio(key: 'optimistic-radio', value: StockMode.optimistic, groupValue: _stockMode, onChanged: _handleStockModeChange)
+          ]),
+        new MenuItem(
+          key: 'Pessimistic Menu Item',
+          icon: 'action/thumb_down',
+          onGestureTap: (event) => _handleStockModeChange(StockMode.pessimistic),
+          children: [
+            new FlexExpandingChild(new Text('Pessimistic'), flex: 1),
+            new Radio(key: 'pessimistic-radio', value: StockMode.pessimistic, groupValue: _stockMode, onChanged: _handleStockModeChange)
+          ]),
+        new MenuDivider(key: 'div2'),
         new MenuItem(
           key: 'Settings',
           icon: 'action/settings',
@@ -163,7 +154,7 @@ class StocksApp extends App {
     return new ToolBar(
         left: new IconButton(
           icon: 'navigation/menu_white',
-          onGestureTap: _drawerController.toggle),
+          onGestureTap: (_) => _drawerController.toggle()),
         center: new Text('Stocks'),
         right: [
           new IconButton(
@@ -179,47 +170,51 @@ class StocksApp extends App {
 
   // TODO(abarth): Should we factor this into a SearchBar in the framework?
   UINode buildSearchBar() {
-    // return new StyleNode(
-    //   new ToolBar(
-    //     left: new IconButton(
-    //       icon: 'navigation/arrow_back_grey600',
-    //       onGestureTap: _handleSearchEnd),
-    //     center: new Input(
-    //       focused: true,
-    //       placeholder: 'Search stocks',
-    //       onChanged: _handleSearchQueryChanged)),
-    //   _searchBarStyle);
+    return new ToolBar(
+      left: new IconButton(
+        icon: 'navigation/arrow_back_grey600',
+        onGestureTap: _handleSearchEnd),
+      center: new Input(
+        focused: true,
+        placeholder: 'Search stocks',
+        onChanged: _handleSearchQueryChanged),
+      backgroundColor: colors.Grey[50]
+    );
   }
 
   void addMenuToOverlays(List<UINode> overlays) {
-    // if (_menuController == null)
-    //   return;
-    // overlays.add(new ModalOverlay(
-    //   children: [new StockMenu(
-    //     controller: _menuController,
-    //     autorefresh: _autorefresh,
-    //     onAutorefreshChanged: _handleAutorefreshChanged
-    //   )],
-    //   onDismiss: _handleMenuHide));
+    if (_menuController == null)
+      return;
+    overlays.add(new ModalOverlay(
+      children: [new StockMenu(
+        controller: _menuController,
+        autorefresh: _autorefresh,
+        onAutorefreshChanged: _handleAutorefreshChanged
+      )],
+      onDismiss: _handleMenuHide));
   }
 
   UINode build() {
     List<UINode> overlays = [
       new Scaffold(
         toolbar: _isSearching ? buildSearchBar() : buildToolBar(),
-        // body: new Stocklist(stocks: _stocks, query: _searchQuery),
-        // floatingActionButton: new FloatingActionButton(
-        //   content: new Icon(type: 'content/add_white', size: 24),
-        //   level: 3),
+        body: new Stocklist(stocks: _stocks, query: _searchQuery),
+        floatingActionButton: new FloatingActionButton(
+          content: new Icon(type: 'content/add_white', size: 24),
+          level: 3),
         drawer: _drawerShowing ? buildDrawer() : null
       ),
     ];
     addMenuToOverlays(overlays);
-    return new StackContainer(children: overlays);
+    return new Stack(overlays);
   }
 }
 
 void main() {
   print("starting stocks app!");
-  new StocksApp();
+  App app = new StocksApp();
+  app.appView.onFrame = () {
+    // uncomment this for debugging:
+    // app.appView.debugDumpRenderTree();
+  };
 }

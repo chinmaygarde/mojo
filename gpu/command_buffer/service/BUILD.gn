@@ -147,10 +147,10 @@ source_set("service") {
     deps -= [ ":disk_cache_proto" ]
 
     sources -= [
-      "memory_program_cache.cc",
-      "memory_program_cache.h",
       "gles2_cmd_decoder.cc",
       "gles2_cmd_decoder.h",
+      "memory_program_cache.cc",
+      "memory_program_cache.h",
     ]
   }
 

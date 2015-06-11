@@ -29,7 +29,7 @@ group("default") {
   if (is_ios) {
     deps = []
     deps = [
-      "//sky/shell"
+      "//sky/shell",
     ]
   }
 }

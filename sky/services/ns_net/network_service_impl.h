@@ -13,24 +13,25 @@ class NetworkServiceImpl : public NetworkService {
   explicit NetworkServiceImpl(InterfaceRequest<NetworkService> request)
       : binding_(this, request.Pass()) {}
 
-  void CreateURLLoader(mojo::InterfaceRequest<mojo::URLLoader> loader) override;
-  void GetCookieStore(
-      mojo::InterfaceRequest<mojo::CookieStore> cookie_store) override;
-  void CreateWebSocket(mojo::InterfaceRequest<mojo::WebSocket> socket) override;
+  void CreateURLLoader(InterfaceRequest<URLLoader> loader) override;
+  void GetCookieStore(InterfaceRequest<CookieStore> cookie_store) override;
+  void CreateWebSocket(InterfaceRequest<WebSocket> socket) override;
   void CreateTCPBoundSocket(
-      mojo::NetAddressPtr local_address,
-      mojo::InterfaceRequest<mojo::TCPBoundSocket> bound_socket,
+      NetAddressPtr local_address,
+      InterfaceRequest<TCPBoundSocket> bound_socket,
       const CreateTCPBoundSocketCallback& callback) override;
   void CreateTCPConnectedSocket(
-      mojo::NetAddressPtr remote_address,
-      mojo::ScopedDataPipeConsumerHandle send_stream,
-      mojo::ScopedDataPipeProducerHandle receive_stream,
-      mojo::InterfaceRequest<mojo::TCPConnectedSocket> client_socket,
+      NetAddressPtr remote_address,
+      ScopedDataPipeConsumerHandle send_stream,
+      ScopedDataPipeProducerHandle receive_stream,
+      InterfaceRequest<TCPConnectedSocket> client_socket,
       const CreateTCPConnectedSocketCallback& callback) override;
-  void CreateUDPSocket(mojo::InterfaceRequest<mojo::UDPSocket> socket) override;
-  void CreateHttpServer(mojo::NetAddressPtr local_address,
-                        mojo::HttpServerDelegatePtr delegate,
+  void CreateUDPSocket(InterfaceRequest<UDPSocket> socket) override;
+  void CreateHttpServer(NetAddressPtr local_address,
+                        HttpServerDelegatePtr delegate,
                         const CreateHttpServerCallback& callback) override;
+  void RegisterURLLoaderInterceptor(
+                        URLLoaderInterceptorFactoryPtr factory) override;
 
  private:
   StrongBinding<NetworkService> binding_;
