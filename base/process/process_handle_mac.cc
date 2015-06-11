@@ -4,9 +4,7 @@
 
 #include "base/process/process_handle.h"
 
-#if !(TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR)
 #include <libproc.h>
-#endif
 
 #include <sys/sysctl.h>
 #include <sys/types.h>
@@ -28,8 +26,6 @@ ProcessId GetParentProcessId(ProcessHandle process) {
   return info.kp_eproc.e_ppid;
 }
 
-#if !(TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR)
-
 FilePath GetProcessExecutablePath(ProcessHandle process) {
   char pathbuf[PROC_PIDPATHINFO_MAXSIZE];
   if (!proc_pidpath(process, pathbuf, sizeof(pathbuf)))
@@ -37,7 +33,5 @@ FilePath GetProcessExecutablePath(ProcessHandle process) {
 
   return FilePath(pathbuf);
 }
-
-#endif
 
 }  // namespace base
