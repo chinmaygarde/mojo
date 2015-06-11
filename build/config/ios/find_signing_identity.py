@@ -7,7 +7,7 @@ import subprocess
 import sys
 import re
 
-def list_identities():
+def ListIdentities():
   return subprocess.check_output([
     '/usr/bin/env',
     'xcrun',
@@ -18,8 +18,9 @@ def list_identities():
     'codesigning',
   ]).strip()
 
-def find_valid_identity():
-  lines = list_identities().splitlines()
+
+def FindValidIdentity():
+  lines = ListIdentities().splitlines()
   # Look for something like "2) XYZ "iPhone Developer: Name (ABC)""
   exp = re.compile('.*\) ([A-F|0-9]*)(.*)')
   for line in lines:
@@ -30,5 +31,6 @@ def find_valid_identity():
       return res.group(1)
   return ""
 
+
 if __name__ == '__main__':
-  print find_valid_identity()
+  print FindValidIdentity()

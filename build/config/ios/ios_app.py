@@ -9,16 +9,16 @@ import errno
 import subprocess
 import sys
 
-def process_info_plist(args):
+PLUTIL = [
+  '/usr/bin/env',
+  'xcrun',
+  'plutil'
+]
+
+
+def ProcessInfoPlist(args):
   output_plist_file = os.path.abspath(os.path.join(args.output, 'Info.plist'))
-
-  plutil = [
-    '/usr/bin/env',
-    'xcrun',
-    'plutil'
-  ]
-
-  return subprocess.check_call( plutil + [
+  return subprocess.check_call( PLUTIL + [
     '-convert',
     'binary1',
     '-o',
@@ -27,7 +27,8 @@ def process_info_plist(args):
     args.input,
   ])
 
-def perform_code_signing(args):
+
+def PerformCodeSigning(args):
   return subprocess.check_call([
     '/usr/bin/env',
     'xcrun',
@@ -40,7 +41,8 @@ def perform_code_signing(args):
     args.application_path,
   ])
 
-def mkdir_p(path):
+
+def MakeDirectories(path):
   try:
     os.makedirs(path)
   except OSError as exc:
@@ -51,11 +53,13 @@ def mkdir_p(path):
 
   return 0
 
-def generate_project_structure(args):
-  application_path = os.path.join( args.dir, args.name + ".app" )
-  return mkdir_p( application_path )
 
-def main():
+def GenerateProjectStructure(args):
+  application_path = os.path.join( args.dir, args.name + ".app" )
+  return MakeDirectories( application_path )
+
+
+def Main():
   parser = argparse.ArgumentParser(description='A script that aids in '
                                    'the creation of an iOS application')
 
@@ -65,7 +69,7 @@ def main():
 
   plist_parser = subparsers.add_parser('plist',
                                        help='Process the Info.plist')
-  plist_parser.set_defaults(func=process_info_plist)
+  plist_parser.set_defaults(func=ProcessInfoPlist)
   
   plist_parser.add_argument('-i', dest='input', help='The input plist path')
   plist_parser.add_argument('-o', dest='output', help='The output plist dir')
@@ -75,7 +79,7 @@ def main():
   dir_struct_parser = subparsers.add_parser('structure',
                       help='Creates the directory of an iOS application')
 
-  dir_struct_parser.set_defaults(func=generate_project_structure)
+  dir_struct_parser.set_defaults(func=GenerateProjectStructure)
 
   dir_struct_parser.add_argument('-d', dest='dir', help='Out directory')
   dir_struct_parser.add_argument('-n', dest='name', help='App name')
@@ -85,7 +89,7 @@ def main():
   code_signing_parser = subparsers.add_parser('codesign',
                         help='Code sign the specified application')
 
-  code_signing_parser.set_defaults(func=perform_code_signing)
+  code_signing_parser.set_defaults(func=PerformCodeSigning)
 
   code_signing_parser.add_argument('-p', dest='application_path', required=True,
                                    help='The application path')
@@ -101,5 +105,6 @@ def main():
   
   return args.func(args)
 
+
 if __name__ == '__main__':
-  sys.exit(main())
+  sys.exit(Main())

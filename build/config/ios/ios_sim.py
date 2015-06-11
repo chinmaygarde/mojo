@@ -10,20 +10,21 @@ import subprocess
 import sys
 import re
 
-simctl_path = [
+SIMCTL_PATH = [
   '/usr/bin/env',
   'xcrun',
   'simctl',
 ]
 
-plist_buddy_path = [
+PLIST_BUDDY_PATH = [
   '/usr/bin/env',
   'xcrun',
   'PlistBuddy',
 ]
 
-def application_identifier(path):
-  identifier = subprocess.check_output( plist_buddy_path + [
+
+def ApplicationIdentifier(path):
+  identifier = subprocess.check_output( PLIST_BUDDY_PATH + [
     '-c',
     'Print CFBundleIdentifier',
     '%s/Info.plist' % path,
@@ -31,20 +32,22 @@ def application_identifier(path):
 
   return identifier.strip()
 
-def install(args):
-  return subprocess.check_call( simctl_path + [
+
+def Install(args):
+  return subprocess.check_call( SIMCTL_PATH + [
     'install',
     'booted',
     args.path,
   ])
 
-def install_launch_and_wait(args, wait):
-  res = install(args)
+
+def InstallLaunchAndWait(args, wait):
+  res = Install(args)
 
   if res != 0:
     return res
 
-  identifier = application_identifier(args.path)
+  identifier = ApplicationIdentifier(args.path)
 
   launch_args = [ 'launch' ]
 
@@ -56,13 +59,15 @@ def install_launch_and_wait(args, wait):
     identifier,
   ]
 
-  return subprocess.check_output( simctl_path + launch_args ).strip()
+  return subprocess.check_output( SIMCTL_PATH + launch_args ).strip()
 
-def launch(args):
-  install_launch_and_wait(args, False)
 
-def debug(args):
-  launch_res = install_launch_and_wait(args, True)
+def Launch(args):
+  InstallLaunchAndWait(args, False)
+
+
+def Debug(args):
+  launch_res = InstallLaunchAndWait(args, True)
   launch_pid = re.search('.*: (\d+)', launch_res).group(1)
   return os.system(' '.join([
     '/usr/bin/env',
@@ -74,7 +79,8 @@ def debug(args):
     launch_pid,
   ]))
 
-def main():
+
+def Main():
   parser = argparse.ArgumentParser(description='A script that launches an'
                                    ' application in the simulator and attaches'
                                    ' the debugger to the same')
@@ -85,17 +91,18 @@ def main():
   subparsers = parser.add_subparsers()
 
   launch_parser = subparsers.add_parser('launch', help='Launch')
-  launch_parser.set_defaults(func=launch)
+  launch_parser.set_defaults(func=Launch)
 
   install_parser = subparsers.add_parser('install', help='Install')
-  install_parser.set_defaults(func=install)
+  install_parser.set_defaults(func=Install)
 
   debug_parser = subparsers.add_parser('debug', help='Debug')
-  debug_parser.set_defaults(func=debug)
+  debug_parser.set_defaults(func=Debug)
 
   args = parser.parse_args()
 
   return args.func(args)
 
+
 if __name__ == '__main__':
-  sys.exit(main())
+  sys.exit(Main())
