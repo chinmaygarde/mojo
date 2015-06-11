@@ -87,6 +87,9 @@ def _args_to_config(args):
 
   is_debug = args.debug and not args.official
 
+  if target_os != Config.OS_IOS:
+    assert not args.simulator, "The simulator target is only configured for iOS"
+
   return Config(target_os=target_os, target_cpu=target_cpu,
                 is_debug=is_debug, is_official_build=args.official,
                 dcheck_always_on=args.dcheck_always_on,

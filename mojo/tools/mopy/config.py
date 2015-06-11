@@ -67,9 +67,6 @@ class Config(object):
       else:
         target_cpu = self.GetHostCPUArch()
 
-    if target_os != Config.OS_IOS:
-      assert not is_simulator, "Simulator target not configured"
-
     self.values["target_cpu"] = target_cpu
     self.values["is_simulator"] = is_simulator
     self.values["is_debug"] = is_debug
