@@ -28,7 +28,7 @@ abstract class UINode {
 
   UINode({ Object key }) {
     _key = key == null ? "$runtimeType" : "$runtimeType-$key";
-    assert(this is App || _inRenderDirtyComponents); // you should not build the UI tree ahead of time, build it only during build()
+    assert(this is AbstractUINodeRoot || _inRenderDirtyComponents); // you should not build the UI tree ahead of time, build it only during build()
   }
 
   String _key;
@@ -744,17 +744,18 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
 
 }
 
-
 class UINodeAppView extends AppView {
 
-  UINodeAppView() {
+  UINodeAppView({ RenderView renderViewOverride: null })
+      : super(renderViewOverride: renderViewOverride) {
     assert(_appView == null);
   }
 
   static UINodeAppView _appView;
-  static void initUINodeAppView() {
+  static AppView get appView => _appView;
+  static void initUINodeAppView({ RenderView renderViewOverride: null }) {
     if (_appView == null)
-      _appView = new UINodeAppView();
+      _appView = new UINodeAppView(renderViewOverride: renderViewOverride);
   }
 
   void dispatchEvent(sky.Event event, HitTestResult result) {
@@ -769,7 +770,7 @@ class UINodeAppView extends AppView {
         if (target is EventListenerNode)
           target._handleEvent(event);
         target = target._parent;
-      }      
+      }
     }
   }
 
@@ -777,8 +778,8 @@ class UINodeAppView extends AppView {
 
 abstract class AbstractUINodeRoot extends Component {
 
-  AbstractUINodeRoot() : super(stateful: true) {
-    UINodeAppView.initUINodeAppView();
+  AbstractUINodeRoot({ RenderView renderViewOverride }) : super(stateful: true) {
+    UINodeAppView.initUINodeAppView(renderViewOverride: renderViewOverride);
     _mounted = true;
     _scheduleComponentForRender(this);
   }
@@ -799,9 +800,7 @@ abstract class AbstractUINodeRoot extends Component {
 
 abstract class App extends AbstractUINodeRoot {
 
-  App();
-
-  AppView get appView => UINodeAppView._appView;
+  App({ RenderView renderViewOverride }) : super(renderViewOverride: renderViewOverride);
 
   void _buildIfDirty() {
     super._buildIfDirty();
@@ -822,7 +821,7 @@ class RenderObjectToUINodeAdapter extends AbstractUINodeRoot {
   RenderObjectToUINodeAdapter(
     RenderObjectWithChildMixin<RenderBox> container,
     this.builder
-  ) : _container = container {
+  ) : _container = container, super() {
     assert(builder != null);
   }
 
@@ -856,5 +855,4 @@ class RenderObjectToUINodeAdapter extends AbstractUINodeRoot {
   }
 
   UINode build() => builder();
-
 }

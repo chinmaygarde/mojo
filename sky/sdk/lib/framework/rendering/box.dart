@@ -53,7 +53,8 @@ class BoxConstraints {
     this.minWidth: 0.0,
     this.maxWidth: double.INFINITY,
     this.minHeight: 0.0,
-    this.maxHeight: double.INFINITY});
+    this.maxHeight: double.INFINITY
+  });
 
   BoxConstraints.tight(Size size)
     : minWidth = size.width,
@@ -76,6 +77,15 @@ class BoxConstraints {
       maxWidth: maxWidth - horizontal,
       minHeight: math.max(0.0, minHeight - vertical),
       maxHeight: maxHeight - vertical
+    );
+  }
+
+  BoxConstraints loosen() {
+    return new BoxConstraints(
+      minWidth: 0.0,
+      maxWidth: maxWidth,
+      minHeight: 0.0,
+      maxHeight: maxHeight
     );
   }
 
@@ -134,19 +144,12 @@ class BoxConstraints {
   final double minHeight;
   final double maxHeight;
 
-  static double _clamp({double min: 0.0, double value: 0.0, double max: double.INFINITY}) {
-    assert(min != null);
-    assert(value != null);
-    assert(max != null);
-    return math.max(min, math.min(max, value));
-  }
-
   double constrainWidth(double width) {
-    return _clamp(min: minWidth, max: maxWidth, value: width);
+    return clamp(min: minWidth, max: maxWidth, value: width);
   }
 
   double constrainHeight(double height) {
-    return _clamp(min: minHeight, max: maxHeight, value: height);
+    return clamp(min: minHeight, max: maxHeight, value: height);
   }
 
   Size constrain(Size size) {
@@ -190,19 +193,19 @@ abstract class RenderBox extends RenderObject {
       child.parentData = new BoxParentData();
   }
 
-  // getMinIntrinsicWidth() should return the minimum width that this box could 
+  // getMinIntrinsicWidth() should return the minimum width that this box could
   // be without failing to render its contents within itself.
   double getMinIntrinsicWidth(BoxConstraints constraints) {
     return constraints.constrainWidth(0.0);
   }
 
-  // getMaxIntrinsicWidth() should return the smallest width beyond which 
+  // getMaxIntrinsicWidth() should return the smallest width beyond which
   // increasing the width never decreases the height.
   double getMaxIntrinsicWidth(BoxConstraints constraints) {
     return constraints.constrainWidth(0.0);
   }
 
-  // getMinIntrinsicHeight() should return the minimum height that this box could 
+  // getMinIntrinsicHeight() should return the minimum height that this box could
   // be without failing to render its contents within itself.
   double getMinIntrinsicHeight(BoxConstraints constraints) {
     return constraints.constrainHeight(0.0);
@@ -248,8 +251,11 @@ abstract class RenderBox extends RenderObject {
   String debugDescribeSettings(String prefix) => '${super.debugDescribeSettings(prefix)}${prefix}size: ${size}\n';
 }
 
-abstract class RenderProxyBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
-  RenderProxyBox(RenderBox child) {
+class RenderProxyBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
+
+  // ProxyBox assumes the child will be at 0,0 and will have the same size
+
+  RenderProxyBox([RenderBox child = null]) {
     this.child = child;
   }
 
@@ -297,6 +303,7 @@ abstract class RenderProxyBox extends RenderBox with RenderObjectWithChildMixin<
     if (child != null)
       child.paint(canvas);
   }
+
 }
 
 class RenderSizedBox extends RenderProxyBox {
@@ -508,12 +515,37 @@ class RenderClipOval extends RenderProxyBox {
   }
 }
 
-class RenderPadding extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
+abstract class RenderShiftedBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
 
-  RenderPadding({ EdgeDims padding, RenderBox child }) {
+  // Abstract class for one-child-layout render boxes
+
+  RenderShiftedBox(RenderBox child) {
+    this.child = child;
+  }
+
+  void paint(RenderObjectDisplayList canvas) {
+    if (child != null)
+      canvas.paintChild(child, child.parentData.position);
+  }
+
+  void hitTestChildren(HitTestResult result, { Point position }) {
+    if (child != null) {
+      assert(child.parentData is BoxParentData);
+      Rect childBounds = new Rect.fromPointAndSize(child.parentData.position, child.size);
+      if (childBounds.contains(position)) {
+        child.hitTest(result, position: new Point(position.x - child.parentData.position.x,
+                                                      position.y - child.parentData.position.y));
+      }
+    }
+  }
+
+}
+
+class RenderPadding extends RenderShiftedBox {
+
+  RenderPadding({ EdgeDims padding, RenderBox child }) : super(child) {
     assert(padding != null);
     this.padding = padding;
-    this.child = child;
   }
 
   EdgeDims _padding;
@@ -569,23 +601,79 @@ class RenderPadding extends RenderBox with RenderObjectWithChildMixin<RenderBox>
                                               padding.top + child.size.height + padding.bottom));
   }
 
-  void paint(RenderObjectDisplayList canvas) {
-    if (child != null)
-      canvas.paintChild(child, child.parentData.position);
+  String debugDescribeSettings(String prefix) => '${super.debugDescribeSettings(prefix)}${prefix}padding: ${padding}\n';
+}
+
+class RenderPositionedBox extends RenderShiftedBox {
+
+  RenderPositionedBox({
+    RenderBox child,
+    double horizontal: 0.5,
+    double vertical: 0.5
+  }) : _horizontal = horizontal,
+       _vertical = vertical,
+       super(child) {
+    assert(horizontal != null);
+    assert(vertical != null);
   }
 
-  void hitTestChildren(HitTestResult result, { Point position }) {
+  double _horizontal;
+  double get horizontal => _horizontal;
+  void set horizontal (double value) {
+    assert(value != null);
+    if (_horizontal == value)
+      return;
+    _horizontal = value;
+    markNeedsLayout();
+  }
+
+  double _vertical;
+  double get vertical => _vertical;
+  void set vertical (double value) {
+    assert(value != null);
+    if (_vertical == value)
+      return;
+    _vertical = value;
+    markNeedsLayout();
+  }
+
+  double getMinIntrinsicWidth(BoxConstraints constraints) {
+    if (child != null)
+      return child.getMinIntrinsicWidth(constraints);
+    return super.getMinIntrinsicWidth(constraints);
+  }
+
+  double getMaxIntrinsicWidth(BoxConstraints constraints) {
+    if (child != null)
+      return child.getMaxIntrinsicWidth(constraints);
+    return super.getMaxIntrinsicWidth(constraints);
+  }
+
+  double getMinIntrinsicHeight(BoxConstraints constraints) {
+    if (child != null)
+      return child.getMinIntrinsicHeight(constraints);
+    return super.getMinIntrinsicHeight(constraints);
+  }
+
+  double getMaxIntrinsicHeight(BoxConstraints constraints) {
+    if (child != null)
+      return child.getMaxIntrinsicHeight(constraints);
+    return super.getMaxIntrinsicHeight(constraints);
+  }
+
+  void performLayout() {
     if (child != null) {
+      child.layout(constraints.loosen());
+      size = constraints.constrain(child.size);
       assert(child.parentData is BoxParentData);
-      Rect childBounds = new Rect.fromPointAndSize(child.parentData.position, child.size);
-      if (childBounds.contains(position)) {
-        child.hitTest(result, position: new Point(position.x - child.parentData.position.x,
-                                                      position.y - child.parentData.position.y));
-      }
+      Size delta = size - child.size;
+      child.parentData.position = new Point(delta.width * horizontal, delta.height * vertical);
+    } else {
+      performResize();
     }
   }
 
-  String debugDescribeSettings(String prefix) => '${super.debugDescribeSettings(prefix)}${prefix}padding: ${padding}\n';
+  String debugDescribeSettings(String prefix) => '${super.debugDescribeSettings(prefix)}${prefix}horizontal: ${horizontal}\n${prefix}vertical: ${vertical}\n';
 }
 
 class RenderImage extends RenderBox {
@@ -613,6 +701,8 @@ class RenderImage extends RenderBox {
   Size _requestedSize;
   Size get requestedSize => _requestedSize;
   void set requestedSize (Size value) {
+    if (value == null)
+      value = const Size(null, null);
     if (value == _requestedSize)
       return;
     _requestedSize = value;

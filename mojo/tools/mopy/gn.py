@@ -68,10 +68,9 @@ def GNArgsForConfig(config):
 
   if config.target_os == Config.OS_ANDROID:
     gn_args["target_os"] = "android"
-  if config.target_os == Config.OS_IOS:
+  elif config.target_os == Config.OS_IOS:
     gn_args["target_os"] = "ios"
     gn_args["ios_deployment_target"] = "7.0"
-    gn_args["use_ios_simulator"] = config.is_simulator
     gn_args["clang_use_chrome_plugins"] = False
     if config.is_simulator:
       gn_args["use_libjpeg_turbo"] = False
@@ -82,15 +81,15 @@ def GNArgsForConfig(config):
     gn_args["target_os"] = "linux"
 
   gn_args["target_cpu"] = config.target_cpu
+  gn_args["use_ios_simulator"] = config.is_simulator
 
-  if config.target_os != Config.OS_IOS:
-    if "use_nacl" in config.values:
-      gn_args["mojo_use_nacl"] = config.values.get("use_nacl", False)
+  if "use_nacl" in config.values:
+    gn_args["mojo_use_nacl"] = config.values.get("use_nacl", False)
 
+  if "mojo_use_go" in config.values:
     gn_args["mojo_use_go"] = config.values.get("mojo_use_go", False)
     if gn_args["mojo_use_go"]:
       gn_args["go_build_tool"] = config.values.get("go_build_tool")
-
 
   extra_args = config.values.get("gn_args")
   if extra_args:
@@ -133,6 +132,7 @@ def ConfigForGNArgs(args):
   config_args["target_os"] = args.get("target_os")
   config_args["target_cpu"] = args.get("target_cpu")
   config_args["dcheck_always_on"] = args.get("dcheck_always_on")
+  config_args["is_simulator"] = args.get("use_ios_simulator")
   return Config(**config_args)
 
 

@@ -17,6 +17,7 @@ class Config(object):
 
   # Valid values for target_os (None is also valid):
   OS_ANDROID = "android"
+  OS_IOS = "ios"
   OS_LINUX = "linux"
   OS_MAC = "mac"
   OS_IOS = "ios"

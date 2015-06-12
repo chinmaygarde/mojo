@@ -304,6 +304,9 @@ def main():
   _verbose_count = args.verbose_count
   InitLogging(_verbose_count)
 
+  if args.simulator and not args.ios:
+    sys.exit("Currently, the simulator target is only configured for iOS")
+
   return args.func(_args_to_config(args))
 
 

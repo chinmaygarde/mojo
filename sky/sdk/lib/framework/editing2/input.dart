@@ -4,7 +4,6 @@
 
 import 'dart:sky' as sky;
 
-import '../rendering/flex.dart';
 import '../widgets/wrappers.dart';
 import 'editable_string.dart';
 import 'editable_text.dart';
@@ -90,7 +89,7 @@ class Input extends Component {
     return new EventListenerNode(
       // style: _style,
       // inlineStyle: focused ? _focusedInlineStyle : null,
-      new Flex(children, direction: FlexDirection.vertical),
+      new Stack(children),
       onPointerDown: (sky.Event e) => keyboard.showByRequest()
     );
   }

@@ -49,19 +49,21 @@ class DecoratedBox extends OneChildRenderObjectWrapper {
 
 }
 
-// TODO(jackson) need a mechanism for marking the RenderCustomPaint as needing paint
 class CustomPaint extends OneChildRenderObjectWrapper {
 
-  CustomPaint({ this.callback, UINode child, Object key })
+  CustomPaint({ this.callback, this.token, UINode child, Object key })
     : super(child: child, key: key);
 
   RenderCustomPaint get root { RenderCustomPaint result = super.root; return result; }
   final CustomPaintCallback callback;
+  final dynamic token;  // set this to be repainted automatically when the token changes
 
   RenderCustomPaint createNode() => new RenderCustomPaint(callback: callback);
 
   void syncRenderObject(CustomPaint old) {
     super.syncRenderObject(old);
+    if (old != null && old.token != token)
+      root.markNeedsPaint();
     root.callback = callback;
   }
 
@@ -124,6 +126,17 @@ class Padding extends OneChildRenderObjectWrapper {
     super.syncRenderObject(old);
     root.padding = padding;
   }
+
+}
+
+class Center extends OneChildRenderObjectWrapper {
+
+  Center({ UINode child, Object key })
+    : super(child: child, key: key);
+
+  RenderPositionedBox get root { RenderPositionedBox result = super.root; return result; }
+
+  RenderPositionedBox createNode() => new RenderPositionedBox();
 
 }
 
@@ -320,16 +333,18 @@ class FlexExpandingChild extends ParentDataNode {
 
 class Paragraph extends RenderObjectWrapper {
 
-  Paragraph({ Object key, this.text }) : super(key: key);
+  Paragraph({ Object key, this.text, this.style }) : super(key: key);
 
   RenderParagraph get root { RenderParagraph result = super.root; return result; }
-  RenderParagraph createNode() => new RenderParagraph(text: text);
+  RenderParagraph createNode() => new RenderParagraph(text: text, style: style);
 
   final String text;
+  final TextStyle style;
 
   void syncRenderObject(UINode old) {
     super.syncRenderObject(old);
     root.text = text;
+    root.style = style;
   }
 
   void insert(RenderObjectWrapper child, dynamic slot) {
@@ -340,10 +355,11 @@ class Paragraph extends RenderObjectWrapper {
 }
 
 class Text extends Component {
-  Text(this.data) : super(key: '*text*');
+  Text(this.data, { TextStyle this.style }) : super(key: '*text*');
   final String data;
+  final TextStyle style;
   bool get interchangeable => true;
-  UINode build() => new Paragraph(text: data);
+  UINode build() => new Paragraph(text: data, style: style);
 }
 
 class Image extends RenderObjectWrapper {

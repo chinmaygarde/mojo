@@ -3,7 +3,10 @@
 // found in the LICENSE file.
 
 import 'package:sky/framework/editing2/input.dart';
+import 'package:sky/framework/rendering/box.dart';
+import 'package:sky/framework/rendering/paragraph.dart';
 import 'package:sky/framework/theme2/colors.dart' as colors;
+import 'package:sky/framework/theme2/typography.dart' as typography;
 import 'package:sky/framework/widgets/drawer.dart';
 import 'package:sky/framework/widgets/drawer_header.dart';
 import 'package:sky/framework/widgets/floating_action_button.dart';
@@ -16,6 +19,7 @@ import 'package:sky/framework/widgets/popup_menu.dart';
 import 'package:sky/framework/widgets/radio.dart';
 import 'package:sky/framework/widgets/scaffold.dart';
 import 'package:sky/framework/widgets/tool_bar.dart';
+import 'package:sky/framework/widgets/ui_node.dart';
 import 'package:sky/framework/widgets/wrappers.dart';
 
 import 'stock_data.dart';
@@ -26,12 +30,9 @@ enum StockMode { optimistic, pessimistic }
 
 class StocksApp extends App {
 
-  // static final Style _titleStyle = new Style('''
-  //   ${typography.white.title};''');
-
   List<Stock> _stocks = [];
 
-  StocksApp() : super() {
+  StocksApp({ RenderView renderViewOverride }) : super(renderViewOverride: renderViewOverride) {
     // if (debug)
     //   new Timer(new Duration(seconds: 1), dumpState);
     new StockDataFetcher((StockData data) {
@@ -155,7 +156,7 @@ class StocksApp extends App {
         left: new IconButton(
           icon: 'navigation/menu_white',
           onGestureTap: (_) => _drawerController.toggle()),
-        center: new Text('Stocks'),
+        center: new Text('Stocks', style: typography.white.title),
         right: [
           new IconButton(
             icon: 'action/search_white',
@@ -200,8 +201,8 @@ class StocksApp extends App {
         toolbar: _isSearching ? buildSearchBar() : buildToolBar(),
         body: new Stocklist(stocks: _stocks, query: _searchQuery),
         floatingActionButton: new FloatingActionButton(
-          content: new Icon(type: 'content/add_white', size: 24),
-          level: 3),
+          child: new Icon(type: 'content/add_white', size: 24)
+        ),
         drawer: _drawerShowing ? buildDrawer() : null
       ),
     ];
@@ -213,7 +214,7 @@ class StocksApp extends App {
 void main() {
   print("starting stocks app!");
   App app = new StocksApp();
-  app.appView.onFrame = () {
+  UINodeAppView.appView.onFrame = () {
     // uncomment this for debugging:
     // app.appView.debugDumpRenderTree();
   };

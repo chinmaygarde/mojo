@@ -11,16 +11,25 @@ import sys
 _MOJO_DEBUGGER_PORT = 7777
 
 
-def _send_request(request):
+def _send_request(request, payload=None):
   """Sends a request to mojo:debugger."""
-  url = 'http://localhost:%s/%s' % (_MOJO_DEBUGGER_PORT, request)
-  return requests.get(url)
+  try:
+    url = 'http://localhost:%s/%s' % (_MOJO_DEBUGGER_PORT, request)
+    if payload:
+      return requests.post(url, payload)
+    else:
+      return requests.get(url)
+  except requests.exceptions.ConnectionError:
+    print 'Failed to connect to mojo:debugger, make sure the shell is running.'
+    return None
 
 
 def _tracing_start(_):
   """Starts tracing."""
-  _send_request('start_tracing')
+  if not _send_request('start_tracing'):
+    return 1
   print "Started tracing."
+  return 0
 
 
 def _tracing_stop(args):
@@ -37,12 +46,16 @@ def _tracing_stop(args):
       print 'Failed to pick a name for the trace output file.'
       return 1
 
-  trace = _send_request('stop_tracing').content
+  response = _send_request('stop_tracing')
+  if not response:
+    return 1
+
   with open(file_name, "wb") as trace_file:
     trace_file.write('{"traceEvents":[')
-    trace_file.write(trace)
+    trace_file.write(response.content)
     trace_file.write(']}')
   print "Trace saved in %s" % file_name
+  return 0
 
 
 def _add_tracing_command(subparsers):
@@ -63,15 +76,35 @@ def _add_tracing_command(subparsers):
   stop_tracing_parser.set_defaults(func=_tracing_stop)
 
 
+def _wm_load(args):
+  """Loads (embeds) the given url in the window manager."""
+  if not _send_request('load', args.url):
+    return 1
+  return 0
+
+
+def _add_wm_command(subparsers):
+  """Sets up the parser for the 'wm' command."""
+  wm_parser = subparsers.add_parser('wm', help='window manager')
+  wm_subparser = wm_parser.add_subparsers(
+      help='the command to run')
+
+  wm_load_parser = wm_subparser.add_parser('load',
+      help='load (embed) the given url')
+  wm_load_parser.add_argument('url', type=str,
+      help='the url to load')
+  wm_load_parser.set_defaults(func=_wm_load)
+
+
 def main():
   parser = argparse.ArgumentParser(description='Command-line interface for '
                                                 'mojo:debugger')
   subparsers = parser.add_subparsers(help='the tool to run')
   _add_tracing_command(subparsers)
+  _add_wm_command(subparsers)
 
   args = parser.parse_args()
-  args.func(args)
-  return 0
+  return args.func(args)
 
 if __name__ == '__main__':
   sys.exit(main())
