@@ -79,6 +79,7 @@ def GNArgsForConfig(config):
     gn_args["use_aura"] = False
     gn_args["use_glib"] = False
     gn_args["use_system_harfbuzz"] = False
+    gn_args["target_os"] = "linux"
 
   gn_args["target_cpu"] = config.target_cpu
 
