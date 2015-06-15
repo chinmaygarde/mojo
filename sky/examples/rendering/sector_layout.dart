@@ -4,9 +4,9 @@
 
 import 'dart:math' as math;
 import 'dart:sky' as sky;
-import 'package:sky/framework/app.dart';
-import 'package:sky/framework/rendering/box.dart';
-import 'package:sky/framework/rendering/object.dart';
+import 'package:sky/app/view.dart';
+import 'package:sky/rendering/box.dart';
+import 'package:sky/rendering/object.dart';
 
 const double kTwoPi = 2 * math.PI;
 
@@ -502,5 +502,5 @@ void main() {
   rootCircle.add(stack);
 
   var root = new RenderBoxToRenderSectorAdapter(innerRadius: 50.0, child: rootCircle);
-  app = new AppView(root);
+  app = new AppView(root: root);
 }

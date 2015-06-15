@@ -25,7 +25,7 @@ GLSurfaceIOS::GLSurfaceIOS(gfx::AcceleratedWidget widget,
       colorbuffer_(GL_NONE),
       depthbuffer_(GL_NONE),
       stencilbuffer_(GL_NONE),
-      depthstencilpackedbuffer_(GL_NONE),
+      depth_stencil_packed_buffer_(GL_NONE),
       last_configured_size_(),
       framebuffer_setup_complete_(false) {
 }
@@ -71,9 +71,9 @@ bool GLSurfaceIOS::OnMakeCurrent(GLContext* context) {
   GLint width = 0;
   GLint height = 0;
   bool rebind_color_buffer = false;
-  if (depthbuffer_ != GL_NONE 
+  if (depthbuffer_ != GL_NONE
       || stencilbuffer_ != GL_NONE
-      || depthstencilpackedbuffer_ != GL_NONE) {
+      || depth_stencil_packed_buffer_ != GL_NONE) {
     // Fetch the dimensions of the color buffer whose backing was just updated
     // so that backing of the attachments can be updated
 
@@ -88,8 +88,8 @@ bool GLSurfaceIOS::OnMakeCurrent(GLContext* context) {
     rebind_color_buffer = true;
   }
 
-  if (depthstencilpackedbuffer_ != GL_NONE) {
-    glBindRenderbuffer(GL_RENDERBUFFER, depthstencilpackedbuffer_);
+  if (depth_stencil_packed_buffer_ != GL_NONE) {
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_stencil_packed_buffer_);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES,
                           width, height);
     DCHECK(glGetError() == GL_NO_ERROR);
@@ -156,15 +156,15 @@ void GLSurfaceIOS::SetupFramebufferIfNecessary() {
   auto requires_packed = (config.depth_bits != 0) && (config.stencil_bits != 0);
 
   if (requires_packed) {
-    glGenRenderbuffers(1, &depthstencilpackedbuffer_);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthstencilpackedbuffer_);
-    DCHECK(depthstencilpackedbuffer_ != GL_NONE);
-    
+    glGenRenderbuffers(1, &depth_stencil_packed_buffer_);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_stencil_packed_buffer_);
+    DCHECK(depth_stencil_packed_buffer_ != GL_NONE);
+
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                              GL_RENDERBUFFER, depthstencilpackedbuffer_);
+                              GL_RENDERBUFFER, depth_stencil_packed_buffer_);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT,
-                              GL_RENDERBUFFER, depthstencilpackedbuffer_);
-    DCHECK(depthstencilpackedbuffer_ != GL_NONE);
+                              GL_RENDERBUFFER, depth_stencil_packed_buffer_);
+    DCHECK(depth_stencil_packed_buffer_ != GL_NONE);
   } else {
     // Setup the depth attachment if necessary
 
@@ -198,7 +198,10 @@ void GLSurfaceIOS::SetupFramebufferIfNecessary() {
   // The default is RGBA
   NSString *drawableColorFormat = kEAGLColorFormatRGBA8;
 
-  if (config.red_bits == 5 && config.green_bits == 6 && config.blue_bits == 5) {
+  if (config.red_bits <= 5
+      && config.green_bits <= 6
+      && config.blue_bits <= 5
+      && config.alpha_bits == 0) {
     drawableColorFormat = kEAGLColorFormatRGB565;
   }
 
@@ -223,7 +226,7 @@ void GLSurfaceIOS::Destroy() {
   // Deletes on GL_NONEs are ignored
   glDeleteRenderbuffers(1, &depthbuffer_);
   glDeleteRenderbuffers(1, &stencilbuffer_);
-  glDeleteRenderbuffers(1, &depthstencilpackedbuffer_);
+  glDeleteRenderbuffers(1, &depth_stencil_packed_buffer_);
 
   DCHECK(glGetError() == GL_NO_ERROR);
 }

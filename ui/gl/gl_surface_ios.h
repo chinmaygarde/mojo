@@ -24,7 +24,7 @@ class GL_EXPORT GLSurfaceIOS : public GLSurface {
   uint32_t colorbuffer_;
   uint32_t depthbuffer_;
   uint32_t stencilbuffer_;
-  uint32_t depthstencilpackedbuffer_;
+  uint32_t depth_stencil_packed_buffer_;
   Size last_configured_size_;
   bool framebuffer_setup_complete_;
   void SetupFramebufferIfNecessary();

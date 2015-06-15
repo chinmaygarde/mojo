@@ -40,6 +40,9 @@ group("sky_apk") {
   ]
 
   if (is_android) {
-    deps += [ "//sky/apk/demo" ]
+    deps += [
+      "//sky/apk/demo",
+      "//sky/services/intents",
+    ]
   }
 }
