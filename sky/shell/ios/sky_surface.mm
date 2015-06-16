@@ -50,7 +50,7 @@ static sky::InputEventPtr BasicInputEventFromRecognizer(
 
   input->gesture_data = sky::GestureData::New();
 
-  CGPoint windowCoordinates = [recognizer locationInView:nil];
+  CGPoint windowCoordinates = [recognizer locationInView:recognizer.view];
   const CGFloat scale = [UIScreen mainScreen].scale;
   input->gesture_data->x = windowCoordinates.x * scale;
   input->gesture_data->y = windowCoordinates.y * scale;

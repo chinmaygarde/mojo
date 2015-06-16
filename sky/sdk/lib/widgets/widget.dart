@@ -17,28 +17,28 @@ export '../rendering/object.dart' show Point, Size, Rect, Color, Paint, Path;
 
 final bool _shouldLogRenderDuration = false;
 
-// All Effen nodes derive from UINode. All nodes have a _parent, a _key and
+// All Effen nodes derive from Widget. All nodes have a _parent, a _key and
 // can be sync'd.
-abstract class UINode {
+abstract class Widget {
 
-  UINode({ String key }) {
-    _key = key == null ? "$runtimeType" : "$runtimeType-$key";
-    assert(this is AbstractUINodeRoot || _inRenderDirtyComponents); // you should not build the UI tree ahead of time, build it only during build()
+  Widget({ String key }) {
+    _key = key != null ? key : runtimeType.toString();
+    assert(this is AbstractWidgetRoot || _inRenderDirtyComponents); // you should not build the UI tree ahead of time, build it only during build()
   }
 
   String _key;
   String get key => _key;
 
-  UINode _parent;
-  UINode get parent => _parent;
+  Widget _parent;
+  Widget get parent => _parent;
 
   bool _mounted = false;
   bool _wasMounted = false;
   bool get mounted => _mounted;
   static bool _notifyingMountStatus = false;
-  static Set<UINode> _mountedChanged = new HashSet<UINode>();
+  static Set<Widget> _mountedChanged = new HashSet<Widget>();
 
-  void setParent(UINode newParent) {
+  void setParent(Widget newParent) {
     assert(!_notifyingMountStatus);
     _parent = newParent;
     if (newParent == null) {
@@ -58,7 +58,7 @@ abstract class UINode {
   static void _notifyMountStatusChanged() {
     try {
       _notifyingMountStatus = true;
-      for (UINode node in _mountedChanged) {
+      for (Widget node in _mountedChanged) {
         if (node._wasMounted != node._mounted) {
           if (node._mounted)
             node.didMount();
@@ -82,11 +82,11 @@ abstract class UINode {
   // if the |old| node has become stateful and should be retained.
   // This is called immediately before _sync().
   // Component._retainStatefulNodeIfPossible() calls syncFields().
-  bool _retainStatefulNodeIfPossible(UINode old) => false;
+  bool _retainStatefulNodeIfPossible(Widget old) => false;
 
   bool get interchangeable => false; // if true, then keys can be duplicated
 
-  void _sync(UINode old, dynamic slot);
+  void _sync(Widget old, dynamic slot);
   // 'slot' is the identifier that the parent RenderObjectWrapper uses to know
   // where to put this descendant
 
@@ -95,19 +95,19 @@ abstract class UINode {
     setParent(null);
   }
 
-  UINode findAncestor(Type targetType) {
+  Widget findAncestor(Type targetType) {
     var ancestor = _parent;
     while (ancestor != null && !reflectClass(ancestor.runtimeType).isSubtypeOf(reflectClass(targetType)))
       ancestor = ancestor._parent;
     return ancestor;
   }
 
-  void removeChild(UINode node) {
+  void removeChild(Widget node) {
     node.remove();
   }
 
   // Returns the child which should be retained as the child of this node.
-  UINode syncChild(UINode node, UINode oldNode, dynamic slot) {
+  Widget syncChild(Widget node, Widget oldNode, dynamic slot) {
 
     assert(oldNode is! Component || !oldNode._disqualifiedFromEverAppearingAgain);
 
@@ -124,7 +124,7 @@ abstract class UINode {
       return null;
     }
 
-    if (oldNode != null && node._key == oldNode._key && node._retainStatefulNodeIfPossible(oldNode)) {
+    if (oldNode != null && oldNode.runtimeType == node.runtimeType && node.key == oldNode.key && node._retainStatefulNodeIfPossible(oldNode)) {
       assert(oldNode.mounted);
       assert(!node.mounted);
       oldNode._sync(node, slot);
@@ -132,7 +132,7 @@ abstract class UINode {
       return oldNode;
     }
 
-    if (oldNode != null && node._key != oldNode._key) {
+    if (oldNode != null && (oldNode.runtimeType != node.runtimeType || node.key != oldNode.key)) {
       assert(oldNode.mounted);
       removeChild(oldNode);
       oldNode = null;
@@ -150,15 +150,15 @@ abstract class UINode {
 // Descendants of TagNode provide a way to tag RenderObjectWrapper and
 // Component nodes with annotations, such as event listeners,
 // stylistic information, etc.
-abstract class TagNode extends UINode {
+abstract class TagNode extends Widget {
 
-  TagNode(UINode content, { String key })
+  TagNode(Widget content, { String key })
     : this.content = content, super(key: key);
 
-  UINode content;
+  Widget content;
 
-  void _sync(UINode old, dynamic slot) {
-    UINode oldContent = old == null ? null : (old as TagNode).content;
+  void _sync(Widget old, dynamic slot) {
+    Widget oldContent = old == null ? null : (old as TagNode).content;
     content = syncChild(content, oldContent, slot);
     assert(content.root != null);
     _root = content.root;
@@ -174,7 +174,7 @@ abstract class TagNode extends UINode {
 }
 
 class ParentDataNode extends TagNode {
-  ParentDataNode(UINode content, this.parentData, { String key })
+  ParentDataNode(Widget content, this.parentData, { String key })
     : super(content, key: key);
   final ParentData parentData;
 }
@@ -185,7 +185,7 @@ typedef void EventListener(sky.Event e);
 
 class EventListenerNode extends TagNode  {
 
-  EventListenerNode(UINode content, {
+  EventListenerNode(Widget content, {
     EventListener onWheel,
     GestureEventListener onGestureFlingCancel,
     GestureEventListener onGestureFlingStart,
@@ -270,7 +270,7 @@ class EventListenerNode extends TagNode  {
 }
 
 
-abstract class Component extends UINode {
+abstract class Component extends Widget {
 
   Component({ String key, bool stateful })
       : _stateful = stateful != null ? stateful : false,
@@ -284,7 +284,7 @@ abstract class Component extends UINode {
   bool _dirty = true;
   bool _disqualifiedFromEverAppearingAgain = false;
 
-  UINode _built;
+  Widget _built;
   dynamic _slot; // cached slot from the last time we were synced
 
   void didMount() {
@@ -300,13 +300,14 @@ abstract class Component extends UINode {
     super.remove();
   }
 
-  bool _retainStatefulNodeIfPossible(UINode old) {
+  bool _retainStatefulNodeIfPossible(Widget old) {
     assert(!_disqualifiedFromEverAppearingAgain);
 
     Component oldComponent = old as Component;
     if (oldComponent == null || !oldComponent._stateful)
       return false;
 
+    assert(runtimeType == oldComponent.runtimeType);
     assert(key == oldComponent.key);
 
     // Make |this|, the newly-created object, into the "old" Component, and kill it
@@ -342,7 +343,7 @@ abstract class Component extends UINode {
   //      assert(_built != null && old == null)
   // 3) Syncing against an old version
   //      assert(_built == null && old != null)
-  void _sync(UINode old, dynamic slot) {
+  void _sync(Widget old, dynamic slot) {
     assert(_built == null || old == null);
     assert(!_disqualifiedFromEverAppearingAgain);
 
@@ -398,7 +399,7 @@ abstract class Component extends UINode {
     _scheduleComponentForRender(this);
   }
 
-  UINode build();
+  Widget build();
 
 }
 
@@ -428,7 +429,7 @@ void _buildDirtyComponents() {
     _inRenderDirtyComponents = false;
   }
 
-  UINode._notifyMountStatusChanged();
+  Widget._notifyMountStatusChanged();
 
   if (_shouldLogRenderDuration) {
     sw.stop();
@@ -450,11 +451,11 @@ void _scheduleComponentForRender(Component c) {
 
 
 // RenderObjectWrappers correspond to a desired state of a RenderObject.
-// They are fully immutable, with one exception: A UINode which is a
+// They are fully immutable, with one exception: A Widget which is a
 // Component which lives within an MultiChildRenderObjectWrapper's
 // children list, may be replaced with the "old" instance if it has
 // become stateful.
-abstract class RenderObjectWrapper extends UINode {
+abstract class RenderObjectWrapper extends Widget {
 
   RenderObjectWrapper({ String key }) : super(key: key);
 
@@ -467,7 +468,7 @@ abstract class RenderObjectWrapper extends UINode {
 
   static RenderObjectWrapper _getMounted(RenderObject node) => _nodeMap[node];
 
-  void _sync(UINode old, dynamic slot) {
+  void _sync(Widget old, dynamic slot) {
     assert(parent != null);
     if (old == null) {
       _root = createNode();
@@ -486,7 +487,7 @@ abstract class RenderObjectWrapper extends UINode {
 
   void syncRenderObject(RenderObjectWrapper old) {
     ParentData parentData = null;
-    UINode ancestor = parent;
+    Widget ancestor = parent;
     while (ancestor != null && ancestor is! RenderObjectWrapper) {
       if (ancestor is ParentDataNode && ancestor.parentData != null) {
         if (parentData != null)
@@ -513,15 +514,15 @@ abstract class RenderObjectWrapper extends UINode {
 
 abstract class OneChildRenderObjectWrapper extends RenderObjectWrapper {
 
-  OneChildRenderObjectWrapper({ UINode child, String key })
+  OneChildRenderObjectWrapper({ String key, Widget child })
     : _child = child, super(key: key);
 
-  UINode _child;
-  UINode get child => _child;
+  Widget _child;
+  Widget get child => _child;
 
   void syncRenderObject(RenderObjectWrapper old) {
     super.syncRenderObject(old);
-    UINode oldChild = old == null ? null : (old as OneChildRenderObjectWrapper).child;
+    Widget oldChild = old == null ? null : (old as OneChildRenderObjectWrapper).child;
     _child = syncChild(child, oldChild, null);
   }
 
@@ -533,7 +534,7 @@ abstract class OneChildRenderObjectWrapper extends RenderObjectWrapper {
     assert(root == this.root); // TODO(ianh): Remove this once the analyzer is cleverer
   }
 
-  void removeChild(UINode node) {
+  void removeChild(Widget node) {
     final root = this.root; // TODO(ianh): Remove this once the analyzer is cleverer
     assert(root is RenderObjectWithChildMixin);
     root.child = null;
@@ -554,13 +555,13 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
   // In MultiChildRenderObjectWrapper subclasses, slots are RenderObject nodes
   // to use as the "insert before" sibling in ContainerRenderObjectMixin.add() calls
 
-  MultiChildRenderObjectWrapper({ String key, List<UINode> children })
+  MultiChildRenderObjectWrapper({ String key, List<Widget> children })
     : this.children = children == null ? const [] : children,
       super(key: key) {
     assert(!_debugHasDuplicateIds());
   }
 
-  final List<UINode> children;
+  final List<Widget> children;
 
   void insert(RenderObjectWrapper child, dynamic slot) {
     final root = this.root; // TODO(ianh): Remove this once the analyzer is cleverer
@@ -570,7 +571,7 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
     assert(root == this.root); // TODO(ianh): Remove this once the analyzer is cleverer
   }
 
-  void removeChild(UINode node) {
+  void removeChild(Widget node) {
     final root = this.root; // TODO(ianh): Remove this once the analyzer is cleverer
     assert(root is ContainerRenderObjectMixin);
     assert(node.root.parent == root);
@@ -595,10 +596,8 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
       if (child.interchangeable)
         continue; // when these nodes are reordered, we just reassign the data
 
-      if (!idSet.add(child._key)) {
-        throw '''If multiple non-interchangeable nodes of the same type exist as children
-                of another node, they must have unique keys.
-                Duplicate: "${child._key}"''';
+      if (!idSet.add(child.key)) {
+        throw '''If multiple non-interchangeable nodes exist as children of another node, they must have unique keys. Duplicate: "${child.key}"''';
       }
     }
     return false;
@@ -619,8 +618,8 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
     var oldEndIndex = oldChildren.length;
 
     RenderObject nextSibling = null;
-    UINode currentNode = null;
-    UINode oldNode = null;
+    Widget currentNode = null;
+    Widget oldNode = null;
 
     void sync(int atIndex) {
       children[atIndex] = syncChild(currentNode, oldNode, nextSibling);
@@ -633,7 +632,7 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
       currentNode = children[endIndex - 1];
       oldNode = oldChildren[oldEndIndex - 1];
 
-      if (currentNode._key != oldNode._key) {
+      if (currentNode.runtimeType != oldNode.runtimeType || currentNode.key != oldNode.key) {
         break;
       }
 
@@ -642,7 +641,7 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
       sync(endIndex);
     }
 
-    HashMap<String, UINode> oldNodeIdMap = null;
+    HashMap<String, Widget> oldNodeIdMap = null;
 
     bool oldNodeReordered(String key) {
       return oldNodeIdMap != null &&
@@ -653,7 +652,7 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
     void advanceOldStartIndex() {
       oldStartIndex++;
       while (oldStartIndex < oldEndIndex &&
-             oldNodeReordered(oldChildren[oldStartIndex]._key)) {
+             oldNodeReordered(oldChildren[oldStartIndex].key)) {
         oldStartIndex++;
       }
     }
@@ -662,11 +661,11 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
       if (oldNodeIdMap != null)
         return;
 
-      oldNodeIdMap = new HashMap<String, UINode>();
+      oldNodeIdMap = new HashMap<String, Widget>();
       for (int i = oldStartIndex; i < oldEndIndex; i++) {
         var node = oldChildren[i];
         if (!node.interchangeable)
-          oldNodeIdMap.putIfAbsent(node._key, () => node);
+          oldNodeIdMap.putIfAbsent(node.key, () => node);
       }
     }
 
@@ -675,11 +674,11 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
         return false; // never re-order these nodes
 
       ensureOldIdMap();
-      oldNode = oldNodeIdMap[currentNode._key];
+      oldNode = oldNodeIdMap[currentNode.key];
       if (oldNode == null)
         return false;
 
-      oldNodeIdMap[currentNode._key] = null; // mark it reordered
+      oldNodeIdMap[currentNode.key] = null; // mark it reordered
       assert(root is ContainerRenderObjectMixin);
       assert(old.root is ContainerRenderObjectMixin);
       assert(oldNode.root != null);
@@ -696,8 +695,7 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
       currentNode = children[startIndex];
       oldNode = oldChildren[oldStartIndex];
 
-      if (currentNode._key == oldNode._key) {
-        assert(currentNode.runtimeType == oldNode.runtimeType);
+      if (currentNode.runtimeType == oldNode.runtimeType && currentNode.key == oldNode.key) {
         nextSibling = root.childAfter(nextSibling);
         sync(startIndex);
         startIndex++;
@@ -732,25 +730,25 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
 
 }
 
-class UINodeAppView extends AppView {
+class WidgetAppView extends AppView {
 
-  UINodeAppView({ RenderView renderViewOverride: null })
+  WidgetAppView({ RenderView renderViewOverride: null })
       : super(renderViewOverride: renderViewOverride) {
     assert(_appView == null);
   }
 
-  static UINodeAppView _appView;
+  static WidgetAppView _appView;
   static AppView get appView => _appView;
-  static void initUINodeAppView({ RenderView renderViewOverride: null }) {
+  static void initWidgetAppView({ RenderView renderViewOverride: null }) {
     if (_appView == null)
-      _appView = new UINodeAppView(renderViewOverride: renderViewOverride);
+      _appView = new WidgetAppView(renderViewOverride: renderViewOverride);
   }
 
   void dispatchEvent(sky.Event event, HitTestResult result) {
     assert(_appView == this);
     super.dispatchEvent(event, result);
     for (HitTestEntry entry in result.path.reversed) {
-      UINode target = RenderObjectWrapper._getMounted(entry.target);
+      Widget target = RenderObjectWrapper._getMounted(entry.target);
       if (target == null)
         continue;
       RenderObject targetRoot = target.root;
@@ -764,15 +762,15 @@ class UINodeAppView extends AppView {
 
 }
 
-abstract class AbstractUINodeRoot extends Component {
+abstract class AbstractWidgetRoot extends Component {
 
-  AbstractUINodeRoot({ RenderView renderViewOverride }) : super(stateful: true) {
-    UINodeAppView.initUINodeAppView(renderViewOverride: renderViewOverride);
+  AbstractWidgetRoot({ RenderView renderViewOverride }) : super(stateful: true) {
+    WidgetAppView.initWidgetAppView(renderViewOverride: renderViewOverride);
     _mounted = true;
     _scheduleComponentForRender(this);
   }
 
-  void syncFields(AbstractUINodeRoot source) {
+  void syncFields(AbstractWidgetRoot source) {
     assert(false);
     // if we get here, it implies that we have a parent
   }
@@ -786,7 +784,7 @@ abstract class AbstractUINodeRoot extends Component {
 
 }
 
-abstract class App extends AbstractUINodeRoot {
+abstract class App extends AbstractWidgetRoot {
 
   App({ RenderView renderViewOverride }) : super(renderViewOverride: renderViewOverride);
 
@@ -795,18 +793,18 @@ abstract class App extends AbstractUINodeRoot {
 
     if (root.parent == null) {
       // we haven't attached it yet
-      UINodeAppView._appView.root = root;
+      WidgetAppView._appView.root = root;
     }
     assert(root.parent is RenderView);
   }
 
 }
 
-typedef UINode Builder();
+typedef Widget Builder();
 
-class RenderBoxToUINodeAdapter extends AbstractUINodeRoot {
+class RenderBoxToWidgetAdapter extends AbstractWidgetRoot {
 
-  RenderBoxToUINodeAdapter(
+  RenderBoxToWidgetAdapter(
     RenderObjectWithChildMixin<RenderBox> container,
     this.builder
   ) : _container = container, super() {
@@ -842,5 +840,5 @@ class RenderBoxToUINodeAdapter extends AbstractUINodeRoot {
     assert(root.parent == _container);
   }
 
-  UINode build() => builder();
+  Widget build() => builder();
 }

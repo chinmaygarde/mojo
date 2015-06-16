@@ -3,75 +3,45 @@
 // found in the LICENSE file.
 
 import '../theme2/colors.dart';
-import '../theme2/edges.dart';
 import 'basic.dart';
-import 'button_base.dart';
-import 'ink_well.dart';
-import 'material.dart';
+import 'material_button.dart';
 
-enum RaisedButtonTheme { light, dark }
+export 'material_button.dart' show MaterialButtonTheme;
 
-class RaisedButton extends ButtonBase {
+class RaisedButton extends MaterialButton {
 
   RaisedButton({
     String key,
-    this.child,
-    this.enabled: true,
-    this.onPressed,
-    this.theme: RaisedButtonTheme.light
-  }) : super(key: key);
+    Widget child,
+    bool enabled: true,
+    Function onPressed,
+    MaterialButtonTheme theme: MaterialButtonTheme.light
+  }) : super(key: key,
+             child: child,
+             enabled: enabled,
+             onPressed: onPressed,
+             theme: theme);
 
-  UINode child;
-  bool enabled;
-  Function onPressed;
-  RaisedButtonTheme theme;
-
-  void syncFields(RaisedButton source) {
-    child = source.child;
-    enabled = source.enabled;
-    onPressed = source.onPressed;
-    theme = source.theme;
-    super.syncFields(source);
-  }
-
-  UINode buildContent() {
-    UINode contents = new Container(
-      padding: new EdgeDims.symmetric(horizontal: 8.0),
-      child: new Center(child: child) // TODO(ianh): figure out a way to compell the child to have gray text when disabled...
-    );
-    Color color;
+  Color get color {
     if (enabled) {
       switch (theme) {
-        case RaisedButtonTheme.light:
+        case MaterialButtonTheme.light:
           if (highlight)
-            color = Grey[350];
+            return Grey[350];
           else
-            color = Grey[300];
+            return Grey[300];
           break;
-        case RaisedButtonTheme.dark:
+        case MaterialButtonTheme.dark:
           if (highlight)
-            color = Blue[700];
+            return Blue[700];
           else
-            color = Blue[600];
+            return Blue[600];
           break;
       }
     } else {
-      color = Grey[350];
+      return Grey[350];
     }
-    return new EventListenerNode(
-      new Container(
-        height: 36.0,
-        constraints: new BoxConstraints(minWidth: 88.0),
-        margin: new EdgeDims.all(4.0),
-        child: new Material(
-          edge: MaterialEdge.card,
-          child: enabled ? new InkWell(child: contents) : contents,
-          level: enabled ? (highlight ? 2 : 1) : 0,
-          color: color
-        )
-      ),
-      onGestureTap: (_) { if (onPressed != null && enabled) onPressed(); }
-    );
   }
 
+  int get level => enabled ? (highlight ? 2 : 1) : 0;
 }
