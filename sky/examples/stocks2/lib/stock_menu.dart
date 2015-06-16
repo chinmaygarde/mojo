@@ -10,7 +10,7 @@ import 'package:sky/framework/theme/view_configuration.dart';
 class StockMenu extends Component {
 
   StockMenu({
-    Object key,
+    String key,
     this.controller,
     this.autorefresh: false,
     this.onAutorefreshChanged
@@ -26,13 +26,13 @@ class StockMenu extends Component {
       onChanged: this.onAutorefreshChanged
     );
 
-    return new StackPositionedChild(
-      new PopupMenu(
+    return new Positioned(
+      child: new PopupMenu(
         controller: controller,
         items: [
-          [new Text('Add stock')],
-          [new Text('Remove stock')],
-          [new FlexExpandingChild(new Text('Autorefresh')), checkbox],
+          new Text('Add stock'),
+          new Text('Remove stock'),
+          new Flex([new Flexible(child: new Text('Autorefresh')), checkbox]),
         ],
         level: 4
       ),

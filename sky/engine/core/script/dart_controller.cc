@@ -241,16 +241,12 @@ static Dart_Isolate IsolateCreateCallback(const char* script_uri,
                                           Dart_IsolateFlags* flags,
                                           void* callback_data,
                                           char** error) {
-
   if (IsServiceIsolateURL(script_uri)) {
     CHECK(kDartIsolateSnapshotBuffer);
     DartState* dart_state = new DartState();
-    Dart_Isolate isolate = Dart_CreateIsolate(script_uri,
-                                              "main",
-                                              kDartIsolateSnapshotBuffer,
-                                              nullptr,
-                                              nullptr,
-                                              error);
+    Dart_Isolate isolate =
+        Dart_CreateIsolate(script_uri, "main", kDartIsolateSnapshotBuffer,
+                           nullptr, nullptr, error);
     CHECK(isolate) << error;
     dart_state->SetIsolate(isolate);
     CHECK(Dart_IsServiceIsolate(isolate));
@@ -279,8 +275,9 @@ static Dart_Isolate IsolateCreateCallback(const char* script_uri,
   // Create & start the handle watcher isolate
   CHECK(kDartIsolateSnapshotBuffer);
   DartState* dart_state = new DartState();
-  Dart_Isolate isolate = Dart_CreateIsolate("sky:handle_watcher", "",
-      kDartIsolateSnapshotBuffer, nullptr, dart_state, error);
+  Dart_Isolate isolate =
+      Dart_CreateIsolate("sky:handle_watcher", "", kDartIsolateSnapshotBuffer,
+                         nullptr, dart_state, error);
   CHECK(isolate) << error;
   dart_state->SetIsolate(isolate);
 

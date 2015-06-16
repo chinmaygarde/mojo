@@ -24,13 +24,22 @@ class ContainerApp extends App {
           key: 'b',
           decoration: new BoxDecoration(backgroundColor: const Color(0xFFFFFF00)),
           padding: new EdgeDims.symmetric(horizontal: 50.0, vertical: 75.0),
-          child: new RaisedButton(
-            child: new Text('PRESS ME'),
-            onPressed: () => print("Hello World")
-          )
+          child: new Flex([
+            new RaisedButton(
+              key: 'b1',
+              child: new Text('PRESS ME'),
+              onPressed: () => print("Hello World")
+            ),
+            new RaisedButton(
+              key: 'b2',
+              child: new Text('DISABLED'),
+              onPressed: () => print("Hello World"),
+              enabled: false
+            )
+          ])
         ),
-        new FlexExpandingChild(
-          new Container(
+        new Flexible(
+          child: new Container(
             decoration: new BoxDecoration(backgroundColor: const Color(0xFF00FFFF))
           )
         ),

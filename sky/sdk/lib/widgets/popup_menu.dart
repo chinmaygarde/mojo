@@ -54,7 +54,7 @@ class PopupMenuController {
 
 class PopupMenu extends AnimatedComponent {
 
-  PopupMenu({ Object key, this.controller, this.items, this.level })
+  PopupMenu({ String key, this.controller, this.items, this.level })
       : super(key: key) {
     _painter = new BoxPainter(new BoxDecoration(
       backgroundColor: Grey[50],
@@ -67,7 +67,7 @@ class PopupMenu extends AnimatedComponent {
   }
 
   PopupMenuController controller;
-  List<List<UINode>> items;
+  List<UINode> items;
   int level;
 
   void syncFields(PopupMenu source) {
@@ -92,9 +92,11 @@ class PopupMenu extends AnimatedComponent {
 
   UINode build() {
     int i = 0;
-    List<UINode> children = new List.from(items.map((List<UINode> item) {
+    List<UINode> children = new List.from(items.map((UINode item) {
       double opacity = _opacityFor(i);
-      return new PopupMenuItem(key: i++, children: item, opacity: opacity);
+      return new PopupMenuItem(key: '${key}-${item.key}',
+                               child: item,
+                               opacity: opacity);
     }));
 
     return new Opacity(
