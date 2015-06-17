@@ -15,7 +15,7 @@ import 'widget.dart';
 export '../rendering/box.dart' show BoxConstraints, BoxDecoration, Border, BorderSide, EdgeDims;
 export '../rendering/flex.dart' show FlexDirection, FlexJustifyContent, FlexAlignItems;
 export '../rendering/object.dart' show Point, Size, Rect, Color, Paint, Path;
-export 'widget.dart' show Widget, Component, App, Listener, ParentDataNode;
+export 'widget.dart' show Widget, Component, App, runApp, Listener, ParentDataNode;
 
 
 // PAINTING NODES
@@ -346,7 +346,7 @@ class Flexible extends ParentDataNode {
 }
 
 class Inline extends RenderObjectWrapper {
-  Inline({ Object key, this.text }) : super(key: key);
+  Inline({ String key, this.text }) : super(key: key);
 
   RenderParagraph get root => super.root;
   RenderParagraph createNode() => new RenderParagraph(text);
@@ -366,7 +366,7 @@ class Inline extends RenderObjectWrapper {
 }
 
 class Text extends Component {
-  Text(this.data, { TextStyle this.style }) : super(key: '*text*');
+  Text(data, { String key, TextStyle this.style }) : data = data, super(key: key);
   final String data;
   final TextStyle style;
   bool get interchangeable => true;
@@ -419,7 +419,7 @@ class WidgetToRenderBoxAdapter extends RenderObjectWrapper {
     super.syncRenderObject(old);
     if (old != null) {
       assert(old is WidgetToRenderBoxAdapter);
-      assert(root == old.renderBox);
+      assert(root == old.root);
     }
   }
 

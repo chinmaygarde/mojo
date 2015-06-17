@@ -15,6 +15,8 @@ class PointerState {
   PointerState({ this.result, this.lastPosition });
 }
 
+typedef void EventListener(sky.Event event);
+
 class AppView {
 
   AppView({ RenderBox root: null, RenderView renderViewOverride }) {
@@ -42,6 +44,7 @@ class AppView {
   static AppView _app; // used to enforce that we're a singleton
 
   RenderView _renderView;
+  RenderView get renderView => _renderView;
 
   ViewConstraints get _viewConstraints =>
       new ViewConstraints(width: sky.view.width, height: sky.view.height);
@@ -49,6 +52,10 @@ class AppView {
   Map<int, PointerState> _stateForPointer = new Map<int, PointerState>();
 
   Function onFrame;
+
+  final List<EventListener> _eventListeners = new List<EventListener>();
+  void addEventListener(EventListener e) => _eventListeners.add(e);
+  bool removeEventListener(EventListener e) => _eventListeners.remove(e);
 
   RenderBox get root => _renderView.child;
   void set root(RenderBox value) {
@@ -68,6 +75,10 @@ class AppView {
       HitTestResult result = new HitTestResult();
       _renderView.hitTest(result, position: new Point(event.x, event.y));
       dispatchEvent(event, result);
+    } else {
+      for (EventListener e in _eventListeners) {
+        e(event);
+      }
     }
   }
 

@@ -124,7 +124,7 @@ class TestRenderView extends RenderView {
     attach();
     rootConstraints = new ViewConstraints(width: 800.0, height: 600.0); // arbitrary figures
     scheduleInitialLayout();
-    checkFrame();
+    syncCheckFrame();
   }
 
   int frame = 0;
@@ -147,10 +147,14 @@ class TestRenderView extends RenderView {
 
   // TEST API:
 
-  void checkFrame() {
+  void syncCheckFrame() {
     RenderObject.flushLayout();
     paintFrame();
     print(lastPaint); // TODO(ianh): figure out how to make this fit the unit testing framework better
+  }
+
+  Future checkFrame() {
+    return new Future.microtask(syncCheckFrame);
   }
 
   void endTest() {
@@ -160,10 +164,7 @@ class TestRenderView extends RenderView {
 }
 
 class TestApp extends App {
-  TestApp({
-    this.builder,
-    RenderView renderViewOverride
-  }) : super(renderViewOverride: renderViewOverride);
+  TestApp({ this.builder });
 
   Function builder;
 
@@ -176,11 +177,11 @@ class WidgetTester {
   TestRenderView renderView = new TestRenderView();
 
   Future test(Function builder) {
-    new TestApp(renderViewOverride: renderView, builder: builder);
-    return new Future.microtask(renderView.checkFrame);
+    runApp(new TestApp(builder: builder), renderViewOverride: renderView);
+    return renderView.checkFrame();
   }
 
-  Future endTest() {
-    return new Future.microtask(renderView.endTest);
+  void endTest() {
+    renderView.endTest();
   }
 }
