@@ -4,13 +4,28 @@
 
 ios_app_script = "//build/config/ios/ios_app.py"
 
+# Code signs an iOS application bundle
+#
+# Variables
+#   entitlements_path: The path to the entitlements .xcent file 
+#   identity: The code signing identity
+#   application_path: The application to code sign
+#   deps: The dependencies of this target
+#
+# Example
+#   code_sign_ios("foo_sign") {
+#     entitlements_path = "entitlements.xcent"
+#     identity = "ABCXYZ"
+#     application_path = "path/to/application.app"
+#     deps = [ ... ]
+#   }
 template("code_sign_ios") {
   assert(defined(invoker.entitlements_path),
-         "The path to the entitlements .xcent file")
+         "The path to the entitlements .xcent file must be specified")
   assert(defined(invoker.identity),
-         "The code signing identity")
+         "The code signing identity must be specified")
   assert(defined(invoker.application_path),
-         "The application to code sign")
+         "The application to code sign must be specified")
   assert(defined(invoker.deps))
 
   action(target_name) {
@@ -18,12 +33,10 @@ template("code_sign_ios") {
       invoker.entitlements_path,
     ]
     
-    _application_path = invoker.application_path
-
     script = ios_app_script
 
     outputs = [
-      "$_application_path/_CodeSignature/CodeResources"
+      invoker.application_path + "/_CodeSignature/CodeResources"
     ]
 
     args = [
@@ -40,13 +53,25 @@ template("code_sign_ios") {
   }
 }
 
+# Copies resources into the iOS application bundle
+#
+# Variables
+#   resources: The source list of resources to copy over
+#   bundle_directory: The directory within the bundle to place the resources in
+#   app_name: The name of the application
+#
+# Example
+#   resource_copy_ios("icu_resources") {
+#     resources = [ "//third_party/icu/ios/icudtl.dat" ]
+#     bundle_directory = "."
+#   }
 template("resource_copy_ios") {
   assert(defined(invoker.resources),
-         "The source list of resources to copy over")
+         "The source list of resources to copy over must be specified")
   assert(defined(invoker.bundle_directory),
-         "The directory within the bundle to place the sources in")
+         "The directory to place the resources in must be specified")
   assert(defined(invoker.app_name),
-         "The name of the application")
+         "The name of the application must be specified")
 
   _bundle_directory = invoker.bundle_directory
   _app_name = invoker.app_name
@@ -59,6 +84,24 @@ template("resource_copy_ios") {
   }
 }
 
+# Creates an iOS application bundle. Performs resource copying and code
+# signing.
+#
+# Variables
+#   info_plist: The application plist file name
+#   app_name: The name of the application bundle
+#   entitlements_path: The path to the entitlements .xcent file
+#   code_signing_identity: The code signing identity to use
+#   deps: the dependencies of this target
+#
+# Example
+#   ios_app("Sky") {
+#     app_name = "Sky"
+#     info_plist = "ios/Info.plist"
+#     entitlements_path = "ios/Entitlements.xcent"
+#     code_signing_identity = "AABBCC"
+#     deps = [ ... ]
+#   }
 template("ios_app") {
 
   assert(defined(invoker.deps),
@@ -78,8 +121,12 @@ template("ios_app") {
   # Generate the project structure
 
   struct_gen_target_name = target_name + "_struct"
+  copy_gen_target_name = target_name + "_copy"
+  code_sign_gen_target_name = target_name + "_codesign"
+  final_target_name = target_name
 
   action(struct_gen_target_name) {
+    visibility = [ ":$copy_gen_target_name" ]
 
     script = ios_app_script
 
@@ -111,6 +158,7 @@ template("ios_app") {
   plist_gen_target_name = target_name + "_plist"
 
   action(plist_gen_target_name) {
+    visibility = [ ":$copy_gen_target_name" ]
 
     script = ios_app_script
 
@@ -128,8 +176,9 @@ template("ios_app") {
 
   # Copy the generated binaries and assets to their appropriate locations
 
-  copy_gen_target_name = target_name + "_copy"
   copy(copy_gen_target_name) {
+    visibility = [ ":$code_sign_gen_target_name" ]
+
     sources = [
       "$root_build_dir/Info.plist",
       "$root_build_dir/$app_name",
@@ -148,7 +197,6 @@ template("ios_app") {
 
   # Perform Code Signing
 
-  code_sign_gen_target_name = target_name + "_codesign"
   code_sign_ios(code_sign_gen_target_name) {
     entitlements_path = invoker.entitlements_path
     identity = invoker.code_signing_identity
@@ -158,7 +206,10 @@ template("ios_app") {
 
   # Top level group
 
-  group(target_name) {
+  group(final_target_name) {
+    if (defined(invoker.visibility)) {
+      visibility = invoker.visibility
+    }
     # Skip code signing if no identity is provided. This is useful for simulator
     # builds
     deps = []

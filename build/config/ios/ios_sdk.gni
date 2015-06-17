@@ -16,7 +16,11 @@ declare_args() {
   # Version of iOS that we're targeting.
   ios_deployment_target = "6.0"
 
-  # The iOS Code signing identity to use
+  # The iOS Code signing identity to use. When building for the iOS simulator,
+  # code signing is never performed and this string is ignored. Code signing is
+  # mandatory for device builds. In case an empty string is provided in this
+  # case, the host will be queried for an identity using the codesign tool
+  # installed as part of the Xcode command line tools.
   ios_code_signing_identity = ""
 }
 
@@ -46,7 +50,7 @@ if (use_ios_simulator) {
   if (ios_code_signing_identity == "") {
     print("Tried to prepare a device build without specifying a code signing")
     print("identity and could not detect one automatically either.")
-    print("TIP: Simulator builds dont require code signing...")
+    print("Simulator builds dont require code signing...")
     assert(false)
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright (c) 2012 The Chromium Authors. All rights reserved.
+# Copyright (c) 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,6 +9,17 @@ import errno
 import subprocess
 import sys
 import re
+
+# This script helps with the installation, launch and debugging of an iOS
+# application on the simulator. The only supported debugger is LLDB.
+#
+# The path to the application bundle is specified using "-p <path_to_app.app>"
+# Depending on the operation to perform, either the "install", "launch" or
+# "debug" arguments can be specified. "launch" implies "install", and, "debug"
+# implies "launch"
+#
+# When debugging, LLDB will break on main and add breakpoints for ObjC
+# exceptions.
 
 SIMCTL_PATH = [
   '/usr/bin/env',
@@ -24,7 +35,7 @@ PLIST_BUDDY_PATH = [
 
 
 def ApplicationIdentifier(path):
-  identifier = subprocess.check_output( PLIST_BUDDY_PATH + [
+  identifier = subprocess.check_output(PLIST_BUDDY_PATH + [
     '-c',
     'Print CFBundleIdentifier',
     '%s/Info.plist' % path,
@@ -34,7 +45,7 @@ def ApplicationIdentifier(path):
 
 
 def Install(args):
-  return subprocess.check_call( SIMCTL_PATH + [
+  return subprocess.check_call(SIMCTL_PATH + [
     'install',
     'booted',
     args.path,
@@ -59,7 +70,7 @@ def InstallLaunchAndWait(args, wait):
     identifier,
   ]
 
-  return subprocess.check_output( SIMCTL_PATH + launch_args ).strip()
+  return subprocess.check_output(SIMCTL_PATH + launch_args).strip()
 
 
 def Launch(args):

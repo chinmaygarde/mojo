@@ -1,11 +1,14 @@
 #!/usr/bin/python
-# Copyright (c) 2012 The Chromium Authors. All rights reserved.
+# Copyright (c) 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import subprocess
 import sys
 import re
+
+# This script tries to find a suitable iPhone developer code signing identity
+# on the host.
 
 def ListIdentities():
   return subprocess.check_output([
