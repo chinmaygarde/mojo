@@ -1,0 +1,22 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index 4e8e540..edf4512 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -495,12 +495,11 @@ component("icuuc") {
+ # TODO(GYP) support use_system_icu.
+ if (icu_use_data_file) {
+   if (is_ios) {
+-    # TODO(GYP): Support mac resource bundle shown below.
+-    # 'link_settings': {
+-    #   'mac_bundle_resources': [
+-    #     'source/data/in/icudtl.dat',
+-    #   ],
+-    # }
++    group("icudata") {
++      # TODO(csg): Provide an empty group so that this target does not
++      # unconditionally fail. The dat file needs to be bundled separately. In
++      # the longer term, need to figure out using system ICU
++    }
+   } else {
+     copy("icudata") {
+       if (is_android) {

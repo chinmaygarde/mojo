@@ -1,0 +1,897 @@
+diff --git a/base/BUILD.gn b/base/BUILD.gn
+index fea9027..a62b4f6 100644
+--- a/base/BUILD.gn
++++ b/base/BUILD.gn
+@@ -11,6 +11,11 @@ if (is_android) {
+ 
+ config("base_implementation") {
+   defines = [ "BASE_IMPLEMENTATION" ]
++
++  if (is_ios) {
++    # base uses routines deprecated in iOS 8
++    cflags = [ "-Wno-deprecated-declarations" ]
++  }
+ }
+ 
+ if (is_win) {
+@@ -39,7 +44,7 @@ source_set("base_paths") {
+     "base_paths_win.h",
+   ]
+ 
+-  if (is_android || is_mac) {
++  if (is_android || is_mac || is_ios) {
+     sources -= [ "base_paths_posix.cc" ]
+   }
+ 
+@@ -764,12 +769,20 @@ component("base") {
+   }
+ 
+   # Mac.
+-  if (is_mac) {
++  if (is_mac || is_ios) {
++    # Common Desktop / iOS excludes
+     sources -= [
+       "native_library_posix.cc",
+       "strings/sys_string_conversions_posix.cc",
+       "threading/platform_thread_internal_posix.cc",
+     ]
++
++    if (is_ios) {
++      sources -= [
++        "files/file_path_watcher_fsevents.cc",
++        "files/file_path_watcher_fsevents.h",
++      ]
++    }
+   } else {
+     # Non-Mac.
+     sources -= [
+@@ -814,6 +827,34 @@ component("base") {
+     }
+   }
+ 
++  # iOS
++  if (is_ios) {
++    set_sources_assignment_filter([])
++
++    sources += [
++      "base_paths_mac.h",
++      "base_paths_mac.mm",
++      "files/file_util_mac.mm",
++      "mac/bundle_locations.h",
++      "mac/bundle_locations.mm",
++      "mac/foundation_util.h",
++      "mac/foundation_util.mm",
++      "mac/mach_logging.cc",
++      "mac/mach_logging.h",
++      "mac/scoped_mach_port.cc",
++      "mac/scoped_mach_port.h",
++      "mac/scoped_nsautorelease_pool.h",
++      "mac/scoped_nsautorelease_pool.mm",
++      "message_loop/message_pump_mac.h",
++      "message_loop/message_pump_mac.mm",
++      "strings/sys_string_conversions_mac.mm",
++      "threading/platform_thread_mac.mm",
++      "time/time_mac.cc",
++    ]
++
++    set_sources_assignment_filter(sources_assignment_filter)
++  }
++
+   if (!use_glib) {
+     sources -= [
+       "message_loop/message_pump_glib.cc",
+@@ -1340,8 +1381,6 @@ test("base_unittests") {
+   if (is_ios) {
+     sources -= [
+       "process/memory_unittest.cc",
+-      "process/memory_unittest_mac.h",
+-      "process/memory_unittest_mac.mm",
+       "process/process_unittest.cc",
+       "process/process_util_unittest.cc",
+     ]
+diff --git a/base/process/BUILD.gn b/base/process/BUILD.gn
+index 814459b..0cf91be 100644
+--- a/base/process/BUILD.gn
++++ b/base/process/BUILD.gn
+@@ -77,7 +77,7 @@ source_set("process") {
+     set_sources_assignment_filter(sources_assignment_filter)
+   }
+ 
+-  if (is_nacl) {
++  if (is_nacl || is_ios) {
+     sources -= [
+       "kill.cc",
+       "kill.h",
+@@ -95,6 +95,12 @@ source_set("process") {
+     ]
+   }
+ 
++  if (is_ios) {
++    sources += [
++      "process_metrics.cc",
++    ]
++  }
++
+   configs += [ "//base:base_implementation" ]
+ 
+   deps = [
+diff --git a/build/config/BUILD.gn b/build/config/BUILD.gn
+index f28f0cf..37d1011 100644
+--- a/build/config/BUILD.gn
++++ b/build/config/BUILD.gn
+@@ -385,12 +385,13 @@ config("default_libs") {
+       "Security.framework",
+     ]
+   } else if (is_ios) {
++    # The libraries listed here will be specified for both the target and the
++    # host. Only the common ones should be listed here.
+     libs = [
+       "CoreFoundation.framework",
+       "CoreGraphics.framework",
+       "CoreText.framework",
+       "Foundation.framework",
+-      "UIKit.framework",
+     ]
+   } else if (is_linux) {
+     libs = [ "dl" ]
+diff --git a/build/config/BUILDCONFIG.gn b/build/config/BUILDCONFIG.gn
+index 10d9d3f..cd68f4f 100644
+--- a/build/config/BUILDCONFIG.gn
++++ b/build/config/BUILDCONFIG.gn
+@@ -559,7 +559,7 @@ if (is_win) {
+   set_default_toolchain(host_toolchain)
+ } else if (is_ios) {
+   host_toolchain = "//build/toolchain/mac:clang_x64"
+-  set_default_toolchain("//build/toolchain/mac:clang_$current_cpu")
++  set_default_toolchain("//build/toolchain/mac:ios_clang_arm")
+ } else if (is_nacl) {
+   # TODO(GYP): This will need to change when we get NaCl working
+   # on multiple platforms, but this whole block of code (how we define
+diff --git a/build/config/compiler/BUILD.gn b/build/config/compiler/BUILD.gn
+index f779795..851a243 100644
+--- a/build/config/compiler/BUILD.gn
++++ b/build/config/compiler/BUILD.gn
+@@ -249,7 +249,7 @@ config("compiler") {
+     } else if (current_cpu == "arm") {
+       common_mac_flags += [
+         "-arch",
+-        "armv7",
++        "arm64",
+       ]
+     }
+ 
+diff --git a/build/config/ios/BUILD.gn b/build/config/ios/BUILD.gn
+index 0539810..b77df79 100644
+--- a/build/config/ios/BUILD.gn
++++ b/build/config/ios/BUILD.gn
+@@ -6,17 +6,4 @@ import("//build/config/sysroot.gni")
+ import("//build/config/ios/ios_sdk.gni")
+ 
+ config("sdk") {
+-  common_flags = [
+-    "-isysroot",
+-    sysroot,
+-  ]
+-
+-  if (use_ios_simulator) {
+-    common_flags += [ "-mios-simulator-version-min=$ios_deployment_target" ]
+-  } else {
+-    common_flags += [ "-miphoneos-version-min=$ios_deployment_target" ]
+-  }
+-
+-  cflags = common_flags
+-  ldflags = common_flags
+ }
+diff --git a/build/config/ios/find_signing_identity.py b/build/config/ios/find_signing_identity.py
+new file mode 100644
+index 0000000..85502fd
+--- /dev/null
++++ b/build/config/ios/find_signing_identity.py
+@@ -0,0 +1,36 @@
++#!/usr/bin/python
++# Copyright (c) 2012 The Chromium Authors. All rights reserved.
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import subprocess
++import sys
++import re
++
++def ListIdentities():
++  return subprocess.check_output([
++    '/usr/bin/env',
++    'xcrun',
++    'security',
++    'find-identity',
++    '-v',
++    '-p',
++    'codesigning',
++  ]).strip()
++
++
++def FindValidIdentity():
++  lines = ListIdentities().splitlines()
++  # Look for something like "2) XYZ "iPhone Developer: Name (ABC)""
++  exp = re.compile('.*\) ([A-F|0-9]*)(.*)')
++  for line in lines:
++    res = exp.match(line)
++    if res is None:
++      continue
++    if "iPhone Developer" in res.group(2):
++      return res.group(1)
++  return ""
++
++
++if __name__ == '__main__':
++  print FindValidIdentity()
+diff --git a/build/config/ios/ios_app.py b/build/config/ios/ios_app.py
+new file mode 100644
+index 0000000..1b02ef0
+--- /dev/null
++++ b/build/config/ios/ios_app.py
+@@ -0,0 +1,110 @@
++#!/usr/bin/python
++# Copyright (c) 2012 The Chromium Authors. All rights reserved.
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import argparse
++import os
++import errno
++import subprocess
++import sys
++
++PLUTIL = [
++  '/usr/bin/env',
++  'xcrun',
++  'plutil'
++]
++
++
++def ProcessInfoPlist(args):
++  output_plist_file = os.path.abspath(os.path.join(args.output, 'Info.plist'))
++  return subprocess.check_call( PLUTIL + [
++    '-convert',
++    'binary1',
++    '-o',
++    output_plist_file,
++    '--',
++    args.input,
++  ])
++
++
++def PerformCodeSigning(args):
++  return subprocess.check_call([
++    '/usr/bin/env',
++    'xcrun',
++    'codesign',
++    '--entitlements',
++    args.entitlements_path,
++    '--sign',
++    args.identity,
++    '-f',
++    args.application_path,
++  ])
++
++
++def MakeDirectories(path):
++  try:
++    os.makedirs(path)
++  except OSError as exc:
++    if exc.errno == errno.EEXIST and os.path.isdir(path):
++      return 0
++    else:
++      return -1
++
++  return 0
++
++
++def GenerateProjectStructure(args):
++  application_path = os.path.join( args.dir, args.name + ".app" )
++  return MakeDirectories( application_path )
++
++
++def Main():
++  parser = argparse.ArgumentParser(description='A script that aids in '
++                                   'the creation of an iOS application')
++
++  subparsers = parser.add_subparsers()
++
++  # Plist Parser
++
++  plist_parser = subparsers.add_parser('plist',
++                                       help='Process the Info.plist')
++  plist_parser.set_defaults(func=ProcessInfoPlist)
++  
++  plist_parser.add_argument('-i', dest='input', help='The input plist path')
++  plist_parser.add_argument('-o', dest='output', help='The output plist dir')
++
++  # Directory Structure Parser
++
++  dir_struct_parser = subparsers.add_parser('structure',
++                      help='Creates the directory of an iOS application')
++
++  dir_struct_parser.set_defaults(func=GenerateProjectStructure)
++
++  dir_struct_parser.add_argument('-d', dest='dir', help='Out directory')
++  dir_struct_parser.add_argument('-n', dest='name', help='App name')
++
++  # Code Signing
++
++  code_signing_parser = subparsers.add_parser('codesign',
++                        help='Code sign the specified application')
++
++  code_signing_parser.set_defaults(func=PerformCodeSigning)
++
++  code_signing_parser.add_argument('-p', dest='application_path', required=True,
++                                   help='The application path')
++  code_signing_parser.add_argument('-i', dest='identity', required=True,
++                                   help='The code signing identity to use')
++  code_signing_parser.add_argument('-e', dest='entitlements_path',
++                                   required=True,
++                                   help='The path to the entitlements .xcent')
++
++  # Engage!
++
++  args = parser.parse_args()
++  
++  return args.func(args)
++
++
++if __name__ == '__main__':
++  sys.exit(Main())
+diff --git a/build/config/ios/ios_sdk.gni b/build/config/ios/ios_sdk.gni
+index cb2708b..ee62574 100644
+--- a/build/config/ios/ios_sdk.gni
++++ b/build/config/ios/ios_sdk.gni
+@@ -15,6 +15,9 @@ declare_args() {
+ 
+   # Version of iOS that we're targeting.
+   ios_deployment_target = "6.0"
++
++  # The iOS Code signing identity to use
++  ios_code_signing_identity = ""
+ }
+ 
+ if (ios_sdk_path == "") {
+@@ -28,3 +31,22 @@ if (ios_sdk_path == "") {
+       exec_script("ios_sdk.py", [ _ios_sdk_to_query ], "list lines")
+   ios_sdk_path = _ios_sdk_result[0]
+ }
++
++if (use_ios_simulator) {
++  # Always disable code signing on the simulator
++  ios_code_signing_identity = ""
++} else {
++  # If an identity is not provided, look for one on the host
++  if (ios_code_signing_identity == "") {
++    _ios_identities = exec_script("find_signing_identity.py", 
++                                  [], "list lines")
++    ios_code_signing_identity = _ios_identities[0]
++  }
++
++  if (ios_code_signing_identity == "") {
++    print("Tried to prepare a device build without specifying a code signing")
++    print("identity and could not detect one automatically either.")
++    print("TIP: Simulator builds dont require code signing...")
++    assert(false)
++  }
++}
+diff --git a/build/config/ios/ios_sim.py b/build/config/ios/ios_sim.py
+new file mode 100755
+index 0000000..02e2b07
+--- /dev/null
++++ b/build/config/ios/ios_sim.py
+@@ -0,0 +1,108 @@
++#!/usr/bin/python
++# Copyright (c) 2012 The Chromium Authors. All rights reserved.
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import argparse
++import os
++import errno
++import subprocess
++import sys
++import re
++
++SIMCTL_PATH = [
++  '/usr/bin/env',
++  'xcrun',
++  'simctl',
++]
++
++PLIST_BUDDY_PATH = [
++  '/usr/bin/env',
++  'xcrun',
++  'PlistBuddy',
++]
++
++
++def ApplicationIdentifier(path):
++  identifier = subprocess.check_output( PLIST_BUDDY_PATH + [
++    '-c',
++    'Print CFBundleIdentifier',
++    '%s/Info.plist' % path,
++  ])
++
++  return identifier.strip()
++
++
++def Install(args):
++  return subprocess.check_call( SIMCTL_PATH + [
++    'install',
++    'booted',
++    args.path,
++  ])
++
++
++def InstallLaunchAndWait(args, wait):
++  res = Install(args)
++
++  if res != 0:
++    return res
++
++  identifier = ApplicationIdentifier(args.path)
++
++  launch_args = [ 'launch' ]
++
++  if wait:
++    launch_args += [ '-w' ]
++
++  launch_args += [
++    'booted',
++    identifier,
++  ]
++
++  return subprocess.check_output( SIMCTL_PATH + launch_args ).strip()
++
++
++def Launch(args):
++  InstallLaunchAndWait(args, False)
++
++
++def Debug(args):
++  launch_res = InstallLaunchAndWait(args, True)
++  launch_pid = re.search('.*: (\d+)', launch_res).group(1)
++  return os.system(' '.join([
++    '/usr/bin/env',
++    'xcrun',
++    'lldb',
++    '-s',
++    os.path.join(os.path.dirname(__file__), 'lldb_start_commands.txt'),
++    '-p',
++    launch_pid,
++  ]))
++
++
++def Main():
++  parser = argparse.ArgumentParser(description='A script that launches an'
++                                   ' application in the simulator and attaches'
++                                   ' the debugger to the same')
++
++  parser.add_argument('-p', dest='path', required=True,
++                      help='Path the the simulator application')
++
++  subparsers = parser.add_subparsers()
++
++  launch_parser = subparsers.add_parser('launch', help='Launch')
++  launch_parser.set_defaults(func=Launch)
++
++  install_parser = subparsers.add_parser('install', help='Install')
++  install_parser.set_defaults(func=Install)
++
++  debug_parser = subparsers.add_parser('debug', help='Debug')
++  debug_parser.set_defaults(func=Debug)
++
++  args = parser.parse_args()
++
++  return args.func(args)
++
++
++if __name__ == '__main__':
++  sys.exit(Main())
+diff --git a/build/config/ios/lldb_start_commands.txt b/build/config/ios/lldb_start_commands.txt
+new file mode 100644
+index 0000000..42e0b14
+--- /dev/null
++++ b/build/config/ios/lldb_start_commands.txt
+@@ -0,0 +1,4 @@
++breakpoint set --name UIApplicationMain
++breakpoint set --name objc_exception_throw
++continue
++script print "........ Debugger break on main() ........"
+diff --git a/build/config/ios/rules.gni b/build/config/ios/rules.gni
+new file mode 100644
+index 0000000..5576ea3
+--- /dev/null
++++ b/build/config/ios/rules.gni
+@@ -0,0 +1,172 @@
++# Copyright 2014 The Chromium Authors. All rights reserved.
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++ios_app_script = "//build/config/ios/ios_app.py"
++
++template("code_sign_ios") {
++  assert(defined(invoker.entitlements_path),
++         "The path to the entitlements .xcent file")
++  assert(defined(invoker.identity),
++         "The code signing identity")
++  assert(defined(invoker.application_path),
++         "The application to code sign")
++  assert(defined(invoker.deps))
++
++  action(target_name) {
++    sources = [
++      invoker.entitlements_path,
++    ]
++    
++    _application_path = invoker.application_path
++
++    script = ios_app_script
++
++    outputs = [
++      "$_application_path/_CodeSignature/CodeResources"
++    ]
++
++    args = [
++      "codesign",
++      "-p",
++      rebase_path(invoker.application_path, root_build_dir),
++      "-i",
++      invoker.identity,
++      "-e",
++      rebase_path(invoker.entitlements_path, root_build_dir),
++    ]
++
++    deps = invoker.deps
++  }
++}
++
++template("resource_copy_ios") {
++  assert(defined(invoker.resources),
++         "The source list of resources to copy over")
++  assert(defined(invoker.bundle_directory),
++         "The directory within the bundle to place the sources in")
++  assert(defined(invoker.app_name),
++         "The name of the application")
++
++  _bundle_directory = invoker.bundle_directory
++  _app_name = invoker.app_name
++  _resources = invoker.resources
++
++  copy(target_name) {
++    set_sources_assignment_filter([])
++    sources = _resources
++    outputs = [ "$root_build_dir/$_app_name.app/$_bundle_directory/{{source_file_part}}" ]
++  }
++}
++
++template("ios_app") {
++
++  assert(defined(invoker.deps),
++         "Dependencies must be specified for $target_name")
++  assert(defined(invoker.info_plist),
++         "The application plist file must be specified for $target_name")
++  assert(defined(invoker.app_name),
++         "The name of iOS application for $target_name")
++  assert(defined(invoker.entitlements_path),
++         "The entitlements path must be specified for $target_name")
++  assert(defined(invoker.code_signing_identity),
++         "The entitlements path must be specified for $target_name")
++
++  # We just create a variable so we can use the same in interpolation
++  app_name = invoker.app_name
++
++  # Generate the project structure
++
++  struct_gen_target_name = target_name + "_struct"
++
++  action(struct_gen_target_name) {
++
++    script = ios_app_script
++
++    sources = []
++    outputs = [ "$root_build_dir/$app_name.app" ]
++
++    args = [
++      "structure",
++      "-d",
++      rebase_path(root_build_dir),
++      "-n",
++      app_name
++    ]
++
++  }
++
++  # Generate the executable
++
++  bin_gen_target_name = target_name + "_bin"
++
++  executable(bin_gen_target_name) {
++    libs = [ "UIKit.framework", "QuartzCore.framework", "OpenGLES.framework" ]
++    deps = invoker.deps
++    output_name = app_name
++  }
++
++  # Process the Info.plist
++
++  plist_gen_target_name = target_name + "_plist"
++
++  action(plist_gen_target_name) {
++
++    script = ios_app_script
++
++    sources = [ invoker.info_plist ]
++    outputs = [ "$root_build_dir/Info.plist" ]
++
++    args = [
++      "plist",
++      "-i",
++      rebase_path(invoker.info_plist, root_build_dir),
++      "-o",
++      rebase_path(root_build_dir),
++    ]
++  }
++
++  # Copy the generated binaries and assets to their appropriate locations
++
++  copy_gen_target_name = target_name + "_copy"
++  copy(copy_gen_target_name) {
++    sources = [
++      "$root_build_dir/Info.plist",
++      "$root_build_dir/$app_name",
++    ]
++
++    outputs = [
++      "$root_build_dir/$app_name.app/{{source_file_part}}"
++    ]
++
++    deps = [
++      ":$struct_gen_target_name",
++      ":$bin_gen_target_name",
++      ":$plist_gen_target_name",
++    ]
++  }
++
++  # Perform Code Signing
++
++  code_sign_gen_target_name = target_name + "_codesign"
++  code_sign_ios(code_sign_gen_target_name) {
++    entitlements_path = invoker.entitlements_path
++    identity = invoker.code_signing_identity
++    application_path = "$root_build_dir/$app_name.app"
++    deps = [ ":$copy_gen_target_name" ]
++  }
++
++  # Top level group
++
++  group(target_name) {
++    # Skip code signing if no identity is provided. This is useful for simulator
++    # builds
++    deps = []
++    if (invoker.code_signing_identity == "") {
++      deps += [ ":$copy_gen_target_name" ]
++    } else {
++      deps += [ ":$code_sign_gen_target_name" ]
++    }
++  }
++
++}
+diff --git a/build/toolchain/mac/BUILD.gn b/build/toolchain/mac/BUILD.gn
+index da4ca05..97f5d00 100644
+--- a/build/toolchain/mac/BUILD.gn
++++ b/build/toolchain/mac/BUILD.gn
+@@ -7,11 +7,13 @@
+ # Linux.
+ 
+ import("../goma.gni")
++import("//build/config/ios/ios_sdk.gni")
+ 
+ assert(host_os == "mac")
+ 
+ import("//build/toolchain/clang.gni")
+ import("//build/toolchain/goma.gni")
++import("//build/config/sysroot.gni")
+ 
+ if (use_goma) {
+   goma_prefix = "$goma_dir/gomacc "
+@@ -36,6 +38,8 @@ template("mac_toolchain") {
+            "mac_toolchain() must specify a \"toolchain_cpu\"")
+     assert(defined(invoker.toolchain_os),
+            "mac_toolchain() must specify a \"toolchain_os\"")
++    assert(defined(invoker.switch_sysroot),
++           "mac_toolchain() must specify a \"switch_sysroot\"")
+ 
+     # We can't do string interpolation ($ in strings) on things with dots in
+     # them. To allow us to use $cc below, for example, we create copies of
+@@ -48,9 +52,23 @@ template("mac_toolchain") {
+     lib_switch = "-l"
+     lib_dir_switch = "-L"
+ 
++    sysroot_flags = ""
++
++    if (invoker.switch_sysroot) {
++      version_flags = ""
++
++      if (use_ios_simulator) {
++        version_flags = "-mios-simulator-version-min=$ios_deployment_target"
++      } else {
++        version_flags = "-miphoneos-version-min=$ios_deployment_target"
++      }
++
++      sysroot_flags = "-isysroot $sysroot $version_flags"
++    }
++
+     tool("cc") {
+       depfile = "{{output}}.d"
+-      command = "$cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
++      command = "$cc -MMD -MF $depfile {{defines}} {{include_dirs}} $sysroot_flags {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
+       depsformat = "gcc"
+       description = "CC {{output}}"
+       outputs = [
+@@ -60,7 +78,7 @@ template("mac_toolchain") {
+ 
+     tool("cxx") {
+       depfile = "{{output}}.d"
+-      command = "$cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} -c {{source}} -o {{output}}"
++      command = "$cxx -MMD -MF $depfile {{defines}} {{include_dirs}} $sysroot_flags {{cflags}} {{cflags_cc}} -c {{source}} -o {{output}}"
+       depsformat = "gcc"
+       description = "CXX {{output}}"
+       outputs = [
+@@ -71,7 +89,7 @@ template("mac_toolchain") {
+     tool("asm") {
+       # For GCC we can just use the C compiler to compile assembly.
+       depfile = "{{output}}.d"
+-      command = "$cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
++      command = "$cc -MMD -MF $depfile {{defines}} {{include_dirs}} $sysroot_flags {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
+       depsformat = "gcc"
+       description = "ASM {{output}}"
+       outputs = [
+@@ -81,7 +99,7 @@ template("mac_toolchain") {
+ 
+     tool("objc") {
+       depfile = "{{output}}.d"
+-      command = "$cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} {{cflags_objc}} -c {{source}} -o {{output}}"
++      command = "$cxx -MMD -MF $depfile {{defines}} {{include_dirs}} $sysroot_flags {{cflags}} {{cflags_c}} {{cflags_objc}} -c {{source}} -o {{output}}"
+       depsformat = "gcc"
+       description = "OBJC {{output}}"
+       outputs = [
+@@ -91,7 +109,7 @@ template("mac_toolchain") {
+ 
+     tool("objcxx") {
+       depfile = "{{output}}.d"
+-      command = "$cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} {{cflags_objcc}} -c {{source}} -o {{output}}"
++      command = "$cxx -MMD -MF $depfile {{defines}} {{include_dirs}} $sysroot_flags {{cflags}} {{cflags_cc}} {{cflags_objcc}} -c {{source}} -o {{output}}"
+       depsformat = "gcc"
+       description = "OBJCXX {{output}}"
+       outputs = [
+@@ -125,7 +143,7 @@ template("mac_toolchain") {
+       temporary_tocname = dylib + ".tmp"
+ 
+       does_reexport_command = "[ ! -e $dylib -o ! -e $tocname ] || otool -l $dylib | grep -q LC_REEXPORT_DYLIB"
+-      link_command = "$ld -shared {{ldflags}} -o $dylib -Wl,-filelist,$rspfile {{solibs}} {{libs}}"
++      link_command = "$ld -shared $sysroot_flags {{ldflags}} -o $dylib -Wl,-filelist,$rspfile {{solibs}} {{libs}}"
+       replace_command = "if ! cmp -s $temporary_tocname $tocname; then mv $temporary_tocname $tocname"
+       extract_toc_command = "{ otool -l $dylib | grep LC_ID_DYLIB -A 5; nm -gP $dylib | cut -f1-2 -d' ' | grep -v U\$\$; true; }"
+ 
+@@ -160,7 +178,7 @@ template("mac_toolchain") {
+     tool("link") {
+       outfile = "{{root_out_dir}}/{{target_output_name}}{{output_extension}}"
+       rspfile = "$outfile.rsp"
+-      command = "$ld {{ldflags}} -o $outfile -Wl,-filelist,$rspfile {{solibs}} {{libs}}"
++      command = "$ld $sysroot_flags {{ldflags}} -o $outfile -Wl,-filelist,$rspfile {{solibs}} {{libs}}"
+       description = "LINK $outfile"
+       rspfile_content = "{{inputs_newline}}"
+       outputs = [
+@@ -202,6 +220,19 @@ mac_toolchain("clang_arm") {
+   cxx = "${goma_prefix}$prefix/clang++"
+   ld = cxx
+   is_clang = true
++  switch_sysroot = false
++}
++
++mac_toolchain("ios_clang_arm") {
++  toolchain_cpu = "arm"
++  toolchain_os = "mac"
++  prefix = rebase_path("//third_party/llvm-build/Release+Asserts/bin",
++                       root_build_dir)
++  cc = "${goma_prefix}$prefix/clang"
++  cxx = "${goma_prefix}$prefix/clang++"
++  ld = cxx
++  is_clang = true
++  switch_sysroot = true
+ }
+ 
+ mac_toolchain("arm") {
+@@ -211,6 +242,7 @@ mac_toolchain("arm") {
+   cxx = "${goma_prefix}/g++"
+   ld = cxx
+   is_clang = false
++  switch_sysroot = false
+ }
+ 
+ mac_toolchain("clang_x64") {
+@@ -222,6 +254,7 @@ mac_toolchain("clang_x64") {
+   cxx = "${goma_prefix}$prefix/clang++"
+   ld = cxx
+   is_clang = true
++  switch_sysroot = false
+ }
+ 
+ mac_toolchain("x64") {
+@@ -231,4 +264,5 @@ mac_toolchain("x64") {
+   cxx = "${goma_prefix}/g++"
+   ld = cxx
+   is_clang = false
++  switch_sysroot = false
+ }
+diff --git a/sky/engine/BUILD.gn b/sky/engine/BUILD.gn
+index e78ba4e..a4e3716 100644
+--- a/sky/engine/BUILD.gn
++++ b/sky/engine/BUILD.gn
+@@ -55,6 +55,13 @@ config("config") {
+   if (is_posix && gcc_version >= 49) {
+     cflags += [ "-Wno-unused-but-set-variable" ]
+   }
++
++  if (is_ios) {
++    # Work around mprotect calls
++    defines += [
++      "MEMORY_TOOL_REPLACES_ALLOCATOR",
++    ]
++  }
+ }
+ 
+ # The follow configs apply to all targets except for unit tests, which rely on
+diff --git a/third_party/boringssl/BUILD.gn b/third_party/boringssl/BUILD.gn
+index e147754..5156f08 100644
+--- a/third_party/boringssl/BUILD.gn
++++ b/third_party/boringssl/BUILD.gn
+@@ -71,7 +71,7 @@ component("boringssl") {
+   ]
+ 
+   if (current_cpu == "x64") {
+-    if (is_mac) {
++    if (is_mac || is_ios) {
+       sources += gypi_values.boringssl_mac_x86_64_sources
+     } else if (is_linux || is_android) {
+       sources += gypi_values.boringssl_linux_x86_64_sources
+@@ -90,7 +90,7 @@ component("boringssl") {
+     } else {
+       defines += [ "OPENSSL_NO_ASM" ]
+     }
+-  } else if (current_cpu == "arm") {
++  } else if (current_cpu == "arm" && !is_ios) {
+     sources += gypi_values.boringssl_linux_arm_sources
+   } else if (current_cpu == "arm64") {
+     sources += gypi_values.boringssl_linux_aarch64_sources
+diff --git a/third_party/libxml/BUILD.gn b/third_party/libxml/BUILD.gn
+index 7fb6678..a26b886 100644
+--- a/third_party/libxml/BUILD.gn
++++ b/third_party/libxml/BUILD.gn
+@@ -149,7 +149,7 @@ static_library("libxml") {
+ 
+   if (is_win) {
+     cflags_c = [ "/wd4101" ]  # Unreferenced local variable.
+-  } else if (is_mac || is_android) {
++  } else if (is_mac || is_android || is_ios) {
+     # http://www.xmlsoft.org/threads.html says that this is required when using
+     # libxml from several threads, which can possibly happen in chrome. On
+     # linux, this is picked up by transitivity from pkg-config output from
+diff --git a/third_party/protobuf/BUILD.gn b/third_party/protobuf/BUILD.gn
+index d94a4cb..7cf31e8 100644
+--- a/third_party/protobuf/BUILD.gn
++++ b/third_party/protobuf/BUILD.gn
+@@ -263,6 +263,10 @@ if (current_toolchain == host_toolchain) {
+     ]
+     deps += [ "//build/config/sanitizers:deps" ]
+   }
++} else {
++  group("protoc") {
++    # FIMXE(csg): It is not clear why this target is being built
++  }
+ }
+ 
+ copy("copy_google") {
