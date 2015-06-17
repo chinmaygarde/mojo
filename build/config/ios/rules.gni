@@ -7,7 +7,7 @@ ios_app_script = "//build/config/ios/ios_app.py"
 # Code signs an iOS application bundle
 #
 # Variables
-#   entitlements_path: The path to the entitlements .xcent file 
+#   entitlements_path: The path to the entitlements .xcent file
 #   identity: The code signing identity
 #   application_path: The application to code sign
 #   deps: The dependencies of this target
@@ -32,11 +32,11 @@ template("code_sign_ios") {
     sources = [
       invoker.entitlements_path,
     ]
-    
+
     script = ios_app_script
 
     outputs = [
-      invoker.application_path + "/_CodeSignature/CodeResources"
+      invoker.application_path + "/_CodeSignature/CodeResources",
     ]
 
     args = [
@@ -80,7 +80,9 @@ template("resource_copy_ios") {
   copy(target_name) {
     set_sources_assignment_filter([])
     sources = _resources
-    outputs = [ "$root_build_dir/$_app_name.app/$_bundle_directory/{{source_file_part}}" ]
+    outputs = [
+      "$root_build_dir/$_app_name.app/$_bundle_directory/{{source_file_part}}",
+    ]
   }
 }
 
@@ -103,7 +105,6 @@ template("resource_copy_ios") {
 #     deps = [ ... ]
 #   }
 template("ios_app") {
-
   assert(defined(invoker.deps),
          "Dependencies must be specified for $target_name")
   assert(defined(invoker.info_plist),
@@ -131,16 +132,17 @@ template("ios_app") {
     script = ios_app_script
 
     sources = []
-    outputs = [ "$root_build_dir/$app_name.app" ]
+    outputs = [
+      "$root_build_dir/$app_name.app",
+    ]
 
     args = [
       "structure",
       "-d",
       rebase_path(root_build_dir),
       "-n",
-      app_name
+      app_name,
     ]
-
   }
 
   # Generate the executable
@@ -148,7 +150,11 @@ template("ios_app") {
   bin_gen_target_name = target_name + "_bin"
 
   executable(bin_gen_target_name) {
-    libs = [ "UIKit.framework", "QuartzCore.framework", "OpenGLES.framework" ]
+    libs = [
+      "UIKit.framework",
+      "QuartzCore.framework",
+      "OpenGLES.framework",
+    ]
     deps = invoker.deps
     output_name = app_name
   }
@@ -162,8 +168,12 @@ template("ios_app") {
 
     script = ios_app_script
 
-    sources = [ invoker.info_plist ]
-    outputs = [ "$root_build_dir/Info.plist" ]
+    sources = [
+      invoker.info_plist,
+    ]
+    outputs = [
+      "$root_build_dir/Info.plist",
+    ]
 
     args = [
       "plist",
@@ -180,12 +190,12 @@ template("ios_app") {
     visibility = [ ":$code_sign_gen_target_name" ]
 
     sources = [
-      "$root_build_dir/Info.plist",
       "$root_build_dir/$app_name",
+      "$root_build_dir/Info.plist",
     ]
 
     outputs = [
-      "$root_build_dir/$app_name.app/{{source_file_part}}"
+      "$root_build_dir/$app_name.app/{{source_file_part}}",
     ]
 
     deps = [
@@ -201,7 +211,9 @@ template("ios_app") {
     entitlements_path = invoker.entitlements_path
     identity = invoker.code_signing_identity
     application_path = "$root_build_dir/$app_name.app"
-    deps = [ ":$copy_gen_target_name" ]
+    deps = [
+      ":$copy_gen_target_name",
+    ]
   }
 
   # Top level group
@@ -210,6 +222,7 @@ template("ios_app") {
     if (defined(invoker.visibility)) {
       visibility = invoker.visibility
     }
+
     # Skip code signing if no identity is provided. This is useful for simulator
     # builds
     deps = []
@@ -219,5 +232,4 @@ template("ios_app") {
       deps += [ ":$code_sign_gen_target_name" ]
     }
   }
-
 }

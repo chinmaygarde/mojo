@@ -73,7 +73,7 @@ def Main():
   plist_parser = subparsers.add_parser('plist',
                                        help='Process the Info.plist')
   plist_parser.set_defaults(func=ProcessInfoPlist)
-  
+
   plist_parser.add_argument('-i', dest='input', help='The input plist path')
   plist_parser.add_argument('-o', dest='output', help='The output plist dir')
 
@@ -105,7 +105,7 @@ def Main():
   # Engage!
 
   args = parser.parse_args()
-  
+
   return args.func(args)
 
 

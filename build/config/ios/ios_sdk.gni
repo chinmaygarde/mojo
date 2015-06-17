@@ -42,8 +42,7 @@ if (use_ios_simulator) {
 } else {
   # If an identity is not provided, look for one on the host
   if (ios_code_signing_identity == "") {
-    _ios_identities = exec_script("find_signing_identity.py", 
-                                  [], "list lines")
+    _ios_identities = exec_script("find_signing_identity.py", [], "list lines")
     ios_code_signing_identity = _ios_identities[0]
   }
 
