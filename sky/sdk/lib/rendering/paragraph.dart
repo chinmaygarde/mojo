@@ -6,102 +6,7 @@ import 'dart:sky' as sky;
 
 import 'box.dart';
 import 'object.dart';
-
-enum FontWeight {
-  light, // 300
-  regular, // 400
-  medium, // 500
-}
-
-enum TextAlign {
-  left,
-  right,
-  center
-}
-
-class TextStyle {
-  const TextStyle({
-    this.color,
-    this.fontSize,
-    this.fontWeight,
-    this.textAlign
-  });
-
-  final Color color;
-  final double fontSize; // in pixels
-  final FontWeight fontWeight;
-  final TextAlign textAlign;
-
-  TextStyle copyWith({
-    Color color,
-    double fontSize,
-    FontWeight fontWeight,
-    TextAlign textAlign
-  }) {
-    return new TextStyle(
-      color: color != null ? color : this.color,
-      fontSize: fontSize != null ? fontSize : this.fontSize,
-      fontWeight: fontWeight != null ? fontWeight : this.fontWeight,
-      textAlign: textAlign != null ? textAlign : this.textAlign
-    );
-  }
-
-  bool operator ==(other) {
-    return other is TextStyle &&
-      color == other.color &&
-      fontSize == other.fontSize &&
-      fontWeight == other.fontWeight &&
-      textAlign == other.textAlign;
-  }
-
-  int get hashCode {
-    // Use Quiver: https://github.com/domokit/mojo/issues/236
-    int value = 373;
-    value = 37 * value + color.hashCode;
-    value = 37 * value + fontSize.hashCode;
-    value = 37 * value + fontWeight.hashCode;
-    value = 37 * value + textAlign.hashCode;
-    return value;
-  }
-
-  void _applyToCSSStyle(sky.CSSStyleDeclaration cssStyle) {
-    if (color != null) {
-      cssStyle['color'] = 'rgba(${color.red}, ${color.green}, ${color.blue}, ${color.alpha / 255.0})';
-    }
-    if (fontSize != null) {
-      cssStyle['font-size'] = "${fontSize}px";
-    }
-    if (fontWeight != null) {
-      cssStyle['font-weight'] = const {
-        FontWeight.light: '300',
-        FontWeight.regular: '400',
-        FontWeight.medium: '500',
-      }[fontWeight];
-    }
-    if (textAlign != null) {
-      cssStyle['text-align'] = const {
-        TextAlign.left: 'left',
-        TextAlign.right: 'right',
-        TextAlign.center: 'center',
-      }[textAlign];
-    }
-  }
-
-  String toString([String prefix = '']) {
-    List<String> result = [];
-    if (color != null)
-      result.add('${prefix}color: $color');
-    if (fontSize != null)
-      result.add('${prefix}fontSize: $fontSize');
-    if (fontWeight != null)
-      result.add('${prefix}fontWeight: $fontWeight');
-    if (textAlign != null)
-      result.add('${prefix}textAlign: $textAlign');
-    if (result.isEmpty)
-      return '${prefix}<no style specified>';
-    return result.join('\n');
-  }
-}
+import '../painting/text_style.dart';
 
 abstract class InlineBase {
   sky.Node _toDOM(sky.Document owner);
@@ -119,6 +24,9 @@ class InlineText extends InlineBase {
     return owner.createText(text);
   }
 
+  bool operator ==(other) => other is InlineText && text == other.text;
+  int get hashCode => text.hashCode;
+
   String toString([String prefix = '']) => '${prefix}InlineText: "${text}"';
 }
 
@@ -133,11 +41,33 @@ class InlineStyle extends InlineBase {
 
   sky.Node _toDOM(sky.Document owner) {
     sky.Element parent = owner.createElement('t');
-    style._applyToCSSStyle(parent.style);
+    style.applyToCSSStyle(parent.style);
     for (InlineBase child in children) {
       parent.appendChild(child._toDOM(owner));
     }
     return parent;
+  }
+
+  bool operator ==(other) {
+    if (identical(this, other))
+      return true;
+    if (other is! InlineStyle
+        || style != other.style
+        || children.length != other.children.length)
+      return false;
+    for (int i = 0; i < children.length; ++i) {
+      if (children[i] != other.children[i])
+        return false;
+    }
+    return true;
+  }
+
+  int get hashCode {
+    int value = 373;
+    value = 37 * value + style.hashCode;
+    for (InlineBase child in children)
+      value = 37 * value + child.hashCode;
+    return value;
   }
 
   String toString([String prefix = '']) {
@@ -173,17 +103,23 @@ class RenderParagraph extends RenderBox {
   final sky.Document _document = new sky.Document();
   final sky.LayoutRoot _layoutRoot = new sky.LayoutRoot();
 
-  InlineBase _inline;
-  BoxConstraints _constraintsForCurrentLayout;
+  BoxConstraints _constraintsForCurrentLayout; // when null, we don't have a current layout
 
+  InlineBase _inline;
   InlineBase get inline => _inline;
   void set inline (InlineBase value) {
+    if (_inline == value)
+      return;
     _inline = value;
     _layoutRoot.rootElement.setChild(_inline._toDOM(_document));
+    _constraintsForCurrentLayout = null;
     markNeedsLayout();
   }
 
   void _layout(BoxConstraints constraints) {
+    assert(constraints != null);
+    if (_constraintsForCurrentLayout == constraints)
+      return; // already cached this layout
     _layoutRoot.maxWidth = constraints.maxWidth;
     _layoutRoot.minWidth = constraints.minWidth;
     _layoutRoot.minHeight = constraints.minHeight;
@@ -218,6 +154,16 @@ class RenderParagraph extends RenderBox {
     return _getIntrinsicHeight(constraints);
   }
 
+  double getDistanceToActualBaseline(TextBaseline baseline) {
+    assert(!needsLayout);
+    _layout(constraints);
+    sky.Element root = _layoutRoot.rootElement;
+    switch (baseline) {
+      case TextBaseline.alphabetic: return root.alphabeticBaseline;
+      case TextBaseline.ideographic: return root.ideographicBaseline;
+    }
+  }
+
   void performLayout() {
     _layout(constraints);
     sky.Element root = _layoutRoot.rootElement;
@@ -226,7 +172,7 @@ class RenderParagraph extends RenderBox {
                                           _applyFloatingPointHack(root.height)));
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     // Ideally we could compute the min/max intrinsic width/height with a
     // non-destructive operation. However, currently, computing these values
     // will destroy state inside the layout root. If that happens, we need to
@@ -234,9 +180,7 @@ class RenderParagraph extends RenderBox {
     //
     // TODO(abarth): Make computing the min/max intrinsic width/height a
     //               non-destructive operation.
-    if (_constraintsForCurrentLayout != constraints && constraints != null)
-      _layout(constraints);
-
+    _layout(constraints);
     _layoutRoot.paint(canvas);
   }
 
@@ -244,7 +188,7 @@ class RenderParagraph extends RenderBox {
 
   String debugDescribeSettings(String prefix) {
     String result = '${super.debugDescribeSettings(prefix)}';
-    result += '${prefix}inline: ${inline}\n';
+    result += '${prefix}inline:\n${inline.toString("$prefix  ")}\n';
     return result;
   }
 }

@@ -4,5 +4,10 @@
 
 #include "sky/tools/packager/switches.h"
 
+namespace switches {
+
+const char kHelp[] = "help";
 const char kPackageRoot[] = "package-root";
 const char kSnapshot[] = "snapshot";
+
+}  // namespace switches

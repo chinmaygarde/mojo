@@ -4,7 +4,7 @@
 
 import '../rendering/box.dart';
 import '../rendering/object.dart';
-import '../theme2/view_configuration.dart';
+import '../theme/view_configuration.dart';
 import 'widget.dart';
 
 enum ScaffoldSlots {
@@ -39,9 +39,12 @@ class RenderScaffold extends RenderBox {
       return;
     if (old != null)
       dropChild(old);
-    _slots[slot] = value;
-    if (value != null)
+    if (value == null) {
+      _slots.remove(slot);
+    } else {
+      _slots[slot] = value;
       adoptChild(value);
+    }
     markNeedsLayout();
   }
 
@@ -74,9 +77,8 @@ class RenderScaffold extends RenderBox {
 
   bool get sizedByParent => true;
   void performResize() {
-    size = constraints.constrain(Size.infinite);
-    assert(size.width < double.INFINITY);
-    assert(size.height < double.INFINITY);
+    size = constraints.biggest;
+    assert(!size.isInfinite);
   }
 
   // TODO(eseidel): These change based on device size!
@@ -118,13 +120,13 @@ class RenderScaffold extends RenderBox {
     if (_slots[ScaffoldSlots.floatingActionButton] != null) {
       RenderBox floatingActionButton = _slots[ScaffoldSlots.floatingActionButton];
       Size area = new Size(size.width - kButtonX, size.height - kButtonY);
-      floatingActionButton.layout(new BoxConstraints.loose(area));
+      floatingActionButton.layout(new BoxConstraints.loose(area), parentUsesSize: true);
       assert(floatingActionButton.parentData is BoxParentData);
       floatingActionButton.parentData.position = (area - floatingActionButton.size).toPoint();
     }
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     for (ScaffoldSlots slot in [ScaffoldSlots.body, ScaffoldSlots.statusBar, ScaffoldSlots.toolbar, ScaffoldSlots.floatingActionButton, ScaffoldSlots.drawer]) {
       RenderBox box = _slots[slot];
       if (box != null) {
@@ -181,7 +183,20 @@ class Scaffold extends RenderObjectWrapper {
   RenderScaffold get root => super.root;
   RenderScaffold createNode() => new RenderScaffold();
 
-  void insert(RenderObjectWrapper child, ScaffoldSlots slot) {
+  void walkChildren(WidgetTreeWalker walker) {
+    if (_toolbar != null)
+      walker(_toolbar);
+    if (_body != null)
+      walker(_body);
+    if (_statusBar != null)
+      walker(_statusBar);
+    if (_drawer != null)
+      walker(_drawer);
+    if (_floatingActionButton != null)
+      walker(_floatingActionButton);
+  }
+
+  void insertChildRoot(RenderObjectWrapper child, ScaffoldSlots slot) {
     root[slot] = child != null ? child.root : null;
   }
 
@@ -194,16 +209,7 @@ class Scaffold extends RenderObjectWrapper {
   }
 
   void remove() {
-    if (_toolbar != null)
-      removeChild(_toolbar);
-    if (_body != null)
-      removeChild(_body);
-    if (_statusBar != null)
-      removeChild(_statusBar);
-    if (_drawer != null)
-      removeChild(_drawer);
-    if (_floatingActionButton != null)
-      removeChild(_floatingActionButton);
+    walkChildren((Widget child) => removeChild(child));
     super.remove();
   }
 

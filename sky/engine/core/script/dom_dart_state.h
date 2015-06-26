@@ -11,13 +11,12 @@
 #include "sky/engine/wtf/RefPtr.h"
 
 namespace blink {
-class DartLoader;
 class LocalFrame;
 class LocalDOMWindow;
 
 class DOMDartState : public DartState {
  public:
-  explicit DOMDartState(Document* document, const KURL& url);
+  explicit DOMDartState(Document* document, const String& url);
   ~DOMDartState() override;
 
   virtual void DidSetIsolate();
@@ -28,24 +27,26 @@ class DOMDartState : public DartState {
   static LocalFrame* CurrentFrame();
   static LocalDOMWindow* CurrentWindow();
 
-  const KURL& url() const { return url_; }
+  const String& url() const { return url_; }
 
   Document* document() const { return document_.get(); }
-  DartLoader& loader() const { return *loader_; }
 
   // Cached handles to strings used in Dart/C++ conversions.
   Dart_Handle x_handle() { return x_handle_.value(); }
   Dart_Handle y_handle() { return y_handle_.value(); }
+  Dart_Handle dx_handle() { return dx_handle_.value(); }
+  Dart_Handle dy_handle() { return dy_handle_.value(); }
   Dart_Handle value_handle() { return value_handle_.value(); }
   Dart_Handle color_class() { return color_class_.value(); }
 
  private:
   RefPtr<Document> document_;
-  KURL url_;
-  OwnPtr<DartLoader> loader_;
+  String url_;
 
   DartPersistentValue x_handle_;
   DartPersistentValue y_handle_;
+  DartPersistentValue dx_handle_;
+  DartPersistentValue dy_handle_;
   DartPersistentValue value_handle_;
   DartPersistentValue color_class_;
 };

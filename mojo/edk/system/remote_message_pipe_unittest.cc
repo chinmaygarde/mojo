@@ -15,10 +15,8 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/message_loop/message_loop.h"
 #include "base/test/test_io_thread.h"
-#include "base/threading/platform_thread.h"  // For |Sleep()|.
 #include "build/build_config.h"              // TODO(vtl): Remove this.
 #include "mojo/edk/embedder/platform_channel_pair.h"
 #include "mojo/edk/embedder/platform_shared_buffer.h"
@@ -36,6 +34,7 @@
 #include "mojo/edk/system/test_utils.h"
 #include "mojo/edk/system/waiter.h"
 #include "mojo/edk/test/test_utils.h"
+#include "mojo/public/cpp/system/macros.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace mojo {
@@ -165,7 +164,7 @@ class RemoteMessagePipeTest : public testing::Test {
   embedder::ScopedPlatformHandle platform_handles_[2];
   scoped_refptr<Channel> channels_[2];
 
-  DISALLOW_COPY_AND_ASSIGN(RemoteMessagePipeTest);
+  MOJO_DISALLOW_COPY_AND_ASSIGN(RemoteMessagePipeTest);
 };
 
 TEST_F(RemoteMessagePipeTest, Basic) {
@@ -1129,7 +1128,7 @@ TEST_F(RemoteMessagePipeTest, MAYBE_PlatformHandlePassing) {
 // itself (not in the test). Also, any logged warnings/errors would also
 // probably be indicative of bugs.
 TEST_F(RemoteMessagePipeTest, RacingClosesStress) {
-  base::TimeDelta delay = base::TimeDelta::FromMilliseconds(5);
+  MojoDeadline delay = test::DeadlineFromMilliseconds(5);
 
   for (unsigned i = 0; i < 256; i++) {
     DVLOG(2) << "---------------------------------------- " << i;
@@ -1142,20 +1141,20 @@ TEST_F(RemoteMessagePipeTest, RacingClosesStress) {
     BootstrapChannelEndpointNoWait(1, ep1);
 
     if (i & 1u) {
-      io_thread()->task_runner()->PostTask(
-          FROM_HERE, base::Bind(&base::PlatformThread::Sleep, delay));
+      io_thread()->task_runner()->PostTask(FROM_HERE,
+                                           base::Bind(&test::Sleep, delay));
     }
     if (i & 2u)
-      base::PlatformThread::Sleep(delay);
+      test::Sleep(delay);
 
     mp0->Close(0);
 
     if (i & 4u) {
-      io_thread()->task_runner()->PostTask(
-          FROM_HERE, base::Bind(&base::PlatformThread::Sleep, delay));
+      io_thread()->task_runner()->PostTask(FROM_HERE,
+                                           base::Bind(&test::Sleep, delay));
     }
     if (i & 8u)
-      base::PlatformThread::Sleep(delay);
+      test::Sleep(delay);
 
     mp1->Close(1);
 

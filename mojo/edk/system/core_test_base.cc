@@ -6,13 +6,13 @@
 
 #include <vector>
 
-#include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "mojo/edk/system/configuration.h"
 #include "mojo/edk/system/core.h"
 #include "mojo/edk/system/dispatcher.h"
 #include "mojo/edk/system/memory.h"
+#include "mojo/public/cpp/system/macros.h"
 
 namespace mojo {
 namespace system {
@@ -158,7 +158,7 @@ class MockDispatcher : public Dispatcher {
 
   CoreTestBase::MockHandleInfo* const info_;
 
-  DISALLOW_COPY_AND_ASSIGN(MockDispatcher);
+  MOJO_DISALLOW_COPY_AND_ASSIGN(MockDispatcher);
 };
 
 }  // namespace

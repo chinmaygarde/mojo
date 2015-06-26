@@ -23,7 +23,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include "sky/engine/config.h"
 #include "sky/engine/core/dom/Element.h"
 
 #include "gen/sky/core/CSSValueKeywords.h"
@@ -76,6 +75,7 @@
 #include "sky/engine/core/page/ChromeClient.h"
 #include "sky/engine/core/page/FocusController.h"
 #include "sky/engine/core/page/Page.h"
+#include "sky/engine/core/painting/Canvas.h"
 #include "sky/engine/core/painting/PaintingCallback.h"
 #include "sky/engine/core/painting/PaintingTasks.h"
 #include "sky/engine/core/painting/PictureRecorder.h"
@@ -970,6 +970,20 @@ void Element::setMaxContentWidth(double width)
 {
     if (RenderBox* box = renderBox())
         return box->setMaxPreferredLogicalWidth(width);
+}
+
+double Element::alphabeticBaseline() const
+{
+    if (RenderBox* box = renderBox())
+        return box->firstLineBoxBaseline(FontBaselineOrAuto(AlphabeticBaseline));
+    return 0;
+}
+
+double Element::ideographicBaseline() const
+{
+    if (RenderBox* box = renderBox())
+        return box->firstLineBoxBaseline(FontBaselineOrAuto(IdeographicBaseline));
+    return 0;
 }
 
 void Element::setNeedsLayout()

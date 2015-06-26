@@ -18,6 +18,9 @@ namespace blink {
 class AbstractModule;
 class BuiltinSky;
 class DOMDartState;
+class DartLibraryProvider;
+class DartLibraryProviderWebView;
+class DartSnapshotLoader;
 class DartValue;
 class HTMLScriptElement;
 class KURL;
@@ -33,8 +36,9 @@ class DartController {
   typedef base::Callback<void(RefPtr<AbstractModule>, RefPtr<DartValue>)>
       LoadFinishedCallback;
 
-  // Can either issue the url load ourselves or take an existing response:
-  void LoadMainLibrary(const KURL& url, mojo::URLResponsePtr response = nullptr);
+  void RunFromLibrary(const String& name,
+                      DartLibraryProvider* library_provider);
+  void RunFromSnapshot(mojo::ScopedDataPipeConsumerHandle snapshot);
 
   void LoadScriptInModule(AbstractModule* module,
                           const String& source,
@@ -56,10 +60,13 @@ class DartController {
                             const String& source,
                             const TextPosition& position);
 
-  void DidLoadMainLibrary(KURL url);
+  void DidLoadMainLibrary(String url);
+  void DidLoadSnapshot();
 
   OwnPtr<DOMDartState> dom_dart_state_;
   OwnPtr<BuiltinSky> builtin_sky_;
+  OwnPtr<DartLibraryProviderWebView> library_provider_;
+  OwnPtr<DartSnapshotLoader> snapshot_loader_;
 
   base::WeakPtrFactory<DartController> weak_factory_;
 

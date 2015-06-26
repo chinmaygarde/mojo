@@ -36,13 +36,13 @@
 #include "sky/engine/public/web/WebView.h"
 #include "sky/services/platform/url_request_types.h"
 #include "sky/viewer/converters/input_event_types.h"
+#include "sky/viewer/dart_library_provider_impl.h"
 #include "sky/viewer/internals.h"
 #include "sky/viewer/runtime_flags.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkDevice.h"
 #include "ui/events/gestures/gesture_recognizer.h"
-#include "v8/include/v8.h"
 
 namespace sky {
 namespace {
@@ -92,6 +92,18 @@ scoped_ptr<ui::TouchEvent> ConvertToUITouchEvent(
                   pointer_event.y * device_pixel_ratio),
       pointer_event.pointer,
       base::TimeDelta::FromMillisecondsD(pointer_event.timeStampMS)));
+}
+
+scoped_ptr<DartLibraryProviderImpl::PrefetchedLibrary>
+CreatePrefetchedLibraryIfNeeded(const String& name,
+                                mojo::URLResponsePtr response) {
+  scoped_ptr<DartLibraryProviderImpl::PrefetchedLibrary> prefetched;
+  if (response->status_code == 200) {
+    prefetched.reset(new DartLibraryProviderImpl::PrefetchedLibrary());
+    prefetched->name = name;
+    prefetched->pipe = response->body.Pass();
+  }
+  return prefetched.Pass();
 }
 
 }  // namespace
@@ -161,9 +173,13 @@ void DocumentView::Load(mojo::URLResponsePtr response) {
   GURL responseURL(response->url);
 
   if (!blink::WebView::shouldUseWebView(responseURL)) {
+    String name = String::fromUTF8(responseURL.spec());
+    library_provider_.reset(new DartLibraryProviderImpl(
+        blink::Platform::current()->networkService(),
+        CreatePrefetchedLibraryIfNeeded(name, response.Pass())));
     sky_view_ = blink::SkyView::Create(this);
     initializeLayerTreeView();
-    sky_view_->Load(responseURL, response.Pass());
+    sky_view_->RunFromLibrary(name, library_provider_.get());
     return;
   }
 
@@ -394,18 +410,18 @@ void DocumentView::OnViewInputEvent(
   if (!web_event)
     return;
 
-  if (sky_view_) {
-    sky_view_->HandleInputEvent(*web_event);
-    return;
-  }
-
   ui::GestureRecognizer* recognizer = ui::GestureRecognizer::Get();
   scoped_ptr<ui::TouchEvent> touch_event =
       ConvertToUITouchEvent(*web_event, device_pixel_ratio);
   if (touch_event)
     recognizer->ProcessTouchEventPreDispatch(*touch_event, this);
 
-  bool handled = web_view_->handleInputEvent(*web_event);
+  bool handled = false;
+
+  if (web_view_)
+    handled = web_view_->handleInputEvent(*web_event);
+  if (sky_view_)
+    sky_view_->HandleInputEvent(*web_event);
 
   if (touch_event) {
     ui::EventResult result = handled ? ui::ER_UNHANDLED : ui::ER_UNHANDLED;
@@ -414,8 +430,12 @@ void DocumentView::OnViewInputEvent(
       for (auto& gesture : *gestures) {
         scoped_ptr<blink::WebInputEvent> gesture_event =
             ConvertEvent(*gesture, device_pixel_ratio);
-        if (gesture_event)
-          web_view_->handleInputEvent(*gesture_event);
+        if (gesture_event) {
+          if (web_view_)
+            web_view_->handleInputEvent(*gesture_event);
+          if (sky_view_)
+            sky_view_->HandleInputEvent(*gesture_event);
+        }
       }
     }
   }

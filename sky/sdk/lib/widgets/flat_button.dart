@@ -2,32 +2,29 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../theme2/colors.dart';
+import '../theme/colors.dart';
 import 'basic.dart';
 import 'material_button.dart';
-
-export 'material_button.dart' show MaterialButtonTheme;
+import 'theme.dart';
 
 class FlatButton extends MaterialButton {
   FlatButton({
     String key,
     Widget child,
     bool enabled: true,
-    Function onPressed,
-    MaterialButtonTheme theme: MaterialButtonTheme.light
+    Function onPressed
   }) : super(key: key,
              child: child,
              enabled: enabled,
-             onPressed: onPressed,
-             theme: theme);
+             onPressed: onPressed);
 
   Color get color {
     if (!enabled || !highlight)
-      return null;
-    switch (theme) {
-      case MaterialButtonTheme.light:
+      return const Color(0x00000000);
+    switch (Theme.of(this).brightness) {
+      case ThemeBrightness.light:
         return Grey[400];
-      case MaterialButtonTheme.dark:
+      case ThemeBrightness.dark:
         return Grey[200];
     }
   }

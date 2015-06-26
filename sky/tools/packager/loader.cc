@@ -4,8 +4,6 @@
 
 #include "sky/tools/packager/loader.h"
 
-#include <utility>
-
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -16,9 +14,6 @@
 #include "sky/tools/packager/switches.h"
 
 namespace {
-
-static const char kSkyInternalsLibraryName[] = "dart:sky.internals";
-static const char kSkyInternalsURL[] = "package:sky/internals.dart";
 
 std::string Fetch(const std::string& url) {
   base::FilePath path(url);
@@ -44,7 +39,7 @@ base::FilePath SimplifyPath(const base::FilePath& path) {
 
 class Loader {
  public:
-  Loader(base::FilePath package_root);
+  Loader(const base::FilePath& package_root);
 
   std::string CanonicalizePackageURL(std::string url);
   Dart_Handle CanonicalizeURL(Dart_Handle library, Dart_Handle url);
@@ -57,8 +52,8 @@ class Loader {
   DISALLOW_COPY_AND_ASSIGN(Loader);
 };
 
-Loader::Loader(base::FilePath package_root)
-    : package_root_(std::move(package_root)) {
+Loader::Loader(const base::FilePath& package_root)
+    : package_root_(package_root) {
 }
 
 std::string Loader::CanonicalizePackageURL(std::string url) {
@@ -72,7 +67,7 @@ Dart_Handle Loader::CanonicalizeURL(Dart_Handle library, Dart_Handle url) {
   if (StartsWithASCII(string, "dart:", true))
     return url;
   if (StartsWithASCII(string, "package:", true))
-    return StringToDart(CanonicalizePackageURL(std::move(string)));
+    return StringToDart(CanonicalizePackageURL(string));
   base::FilePath base_path(StringFromDart(Dart_LibraryUrl(library)));
   base::FilePath resolved_path = base_path.DirName().Append(string);
   base::FilePath normalized_path = SimplifyPath(resolved_path);
@@ -98,8 +93,10 @@ Loader* g_loader = nullptr;
 Loader& GetLoader() {
   if (!g_loader) {
     base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
-    CHECK(command_line.HasSwitch(kPackageRoot)) << "Need --package-root";
-    g_loader = new Loader(command_line.GetSwitchValuePath(kPackageRoot));
+    CHECK(command_line.HasSwitch(switches::kPackageRoot))
+        << "Need --package-root";
+    g_loader =
+        new Loader(command_line.GetSwitchValuePath(switches::kPackageRoot));
   }
   return *g_loader;
 }
@@ -124,15 +121,7 @@ Dart_Handle HandleLibraryTag(Dart_LibraryTag tag,
   return Dart_NewApiError("Unknown library tag.");
 }
 
-void LoadSkyInternals() {
-  DartApiScope api_scope;
-
-  Dart_Handle library_name = StringToDart(kSkyInternalsLibraryName);
-  std::string url = GetLoader().CanonicalizePackageURL(kSkyInternalsURL);
-  LogIfError(Dart_LoadLibrary(library_name, StringToDart(Fetch(url)), 0, 0));
-}
-
-void LoadScript(std::string url) {
+void LoadScript(const std::string& url) {
   LogIfError(
       Dart_LoadScript(StringToDart(url), StringToDart(Fetch(url)), 0, 0));
 }

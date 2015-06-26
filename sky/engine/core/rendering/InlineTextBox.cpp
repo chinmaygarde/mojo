@@ -20,7 +20,6 @@
  *
  */
 
-#include "sky/engine/config.h"
 #include "sky/engine/core/rendering/InlineTextBox.h"
 
 #include "gen/sky/platform/RuntimeEnabledFeatures.h"
@@ -41,6 +40,7 @@
 #include "sky/engine/core/rendering/RenderBlock.h"
 #include "sky/engine/core/rendering/RenderTheme.h"
 #include "sky/engine/core/rendering/style/ShadowList.h"
+#include "sky/engine/platform/animation/UnitBezier.h"
 #include "sky/engine/platform/fonts/FontCache.h"
 #include "sky/engine/platform/fonts/GlyphBuffer.h"
 #include "sky/engine/platform/fonts/WidthIterator.h"
@@ -778,28 +778,25 @@ static int computeUnderlineOffset(const TextUnderlinePosition underlinePosition,
     return fontMetrics.ascent() + gap;
 }
 
-static void adjustStepToDecorationLength(float& step, float& controlPointDistance, float length)
-{
-    ASSERT(step > 0);
+struct CurveAlongX {
+  static inline float x(const FloatPoint& p) { return p.x(); }
+  static inline float y(const FloatPoint& p) { return p.y(); }
+  static inline FloatPoint p(float x, float y) { return FloatPoint(x, y); }
+  static inline void setX(FloatPoint& p, double x) { p.setX(x); }
+};
 
-    if (length <= 0)
-        return;
-
-    unsigned stepCount = static_cast<unsigned>(length / step);
-
-    // Each Bezier curve starts at the same pixel that the previous one
-    // ended. We need to subtract (stepCount - 1) pixels when calculating the
-    // length covered to account for that.
-    float uncoveredLength = length - (stepCount * step - (stepCount - 1));
-    float adjustment = uncoveredLength / stepCount;
-    step += adjustment;
-    controlPointDistance += adjustment;
-}
+struct CurveAlongY {
+  static inline float x(const FloatPoint& p) { return p.y(); }
+  static inline float y(const FloatPoint& p) { return p.x(); }
+  static inline FloatPoint p(float x, float y) { return FloatPoint(y, x); }
+  static inline void setX(FloatPoint& p, double x) { p.setY(x); }
+};
 
 /*
- * Draw one cubic Bezier curve and repeat the same pattern long the the decoration's axis.
- * The start point (p1), controlPoint1, controlPoint2 and end point (p2) of the Bezier curve
- * form a diamond shape:
+ * Draw one cubic Bezier curve and repeat the same pattern along the
+ * the decoration's axis. The start point (p1), controlPoint1,
+ * controlPoint2 and end point (p2) of the Bezier curve form a diamond
+ * shape, as follows (the four points marked +):
  *
  *                              step
  *                         |-----------|
@@ -822,82 +819,84 @@ static void adjustStepToDecorationLength(float& step, float& controlPointDistanc
  *
  *             |-----------|
  *                 step
+ *
+ * strokeWavyTextDecorationInternal() takes two points, p1 and p2.
+ * These must be axis-aligned. If they are horizontally-aligned,
+ * specialize it with CurveAlongX; if they are vertically aligned,
+ * specialize it with CurveAlongY. The function is written as if it
+ * was doing everything along the X axis; CurveAlongY just flips the
+ * coordinates around.
  */
-static void strokeWavyTextDecoration(GraphicsContext* context, FloatPoint p1, FloatPoint p2, float strokeThickness)
+template <class Curve> static void strokeWavyTextDecorationInternal(GraphicsContext* context, FloatPoint p1, FloatPoint p2, float strokeThickness) 
 {
+    ASSERT(Curve::y(p1) == Curve::y(p2)); // verify that this is indeed axis-aligned
+
     context->adjustLineToPixelBoundaries(p1, p2, strokeThickness, context->strokeStyle());
 
     Path path;
     path.moveTo(p1);
 
-    // Distance between decoration's axis and Bezier curve's control points.
-    // The height of the curve is based on this distance. Use a minimum of 6 pixels distance since
-    // the actual curve passes approximately at half of that distance, that is 3 pixels.
-    // The minimum height of the curve is also approximately 3 pixels. Increases the curve's height
-    // as strockThickness increases to make the curve looks better.
-    float controlPointDistance = 3 * std::max<float>(2, strokeThickness);
+    float controlPointDistance = 2 * strokeThickness;
+    float step = controlPointDistance;
 
-    // Increment used to form the diamond shape between start point (p1), control
-    // points and end point (p2) along the axis of the decoration. Makes the
-    // curve wider as strockThickness increases to make the curve looks better.
-    float step = 2 * std::max<float>(2, strokeThickness);
+    float yAxis = Curve::y(p1);
+    float x1;
+    float x2;
 
-    bool isVerticalLine = (p1.x() == p2.x());
-
-    if (isVerticalLine) {
-        ASSERT(p1.x() == p2.x());
-
-        float xAxis = p1.x();
-        float y1;
-        float y2;
-
-        if (p1.y() < p2.y()) {
-            y1 = p1.y();
-            y2 = p2.y();
-        } else {
-            y1 = p2.y();
-            y2 = p1.y();
-        }
-
-        adjustStepToDecorationLength(step, controlPointDistance, y2 - y1);
-        FloatPoint controlPoint1(xAxis + controlPointDistance, 0);
-        FloatPoint controlPoint2(xAxis - controlPointDistance, 0);
-
-        for (float y = y1; y + 2 * step <= y2;) {
-            controlPoint1.setY(y + step);
-            controlPoint2.setY(y + step);
-            y += 2 * step;
-            path.addBezierCurveTo(controlPoint1, controlPoint2, FloatPoint(xAxis, y));
-        }
+    if (Curve::x(p1) < Curve::x(p2)) {
+        x1 = Curve::x(p1);
+        x2 = Curve::x(p2);
     } else {
-        ASSERT(p1.y() == p2.y());
+        x1 = Curve::x(p2);
+        x2 = Curve::x(p1);
+    }
 
-        float yAxis = p1.y();
-        float x1;
-        float x2;
+    FloatPoint controlPoint1 = Curve::p(0, yAxis + controlPointDistance);
+    FloatPoint controlPoint2 = Curve::p(0, yAxis - controlPointDistance);
 
-        if (p1.x() < p2.x()) {
-            x1 = p1.x();
-            x2 = p2.x();
-        } else {
-            x1 = p2.x();
-            x2 = p1.x();
-        }
+    float x;
+    for (x = x1; x + 2 * step <= x2;) {
+        Curve::setX(controlPoint1, x + step);
+        Curve::setX(controlPoint2, x + step);
+        x += 2 * step;
+        path.addBezierCurveTo(controlPoint1, controlPoint2, Curve::p(x, yAxis));
+    }
 
-        adjustStepToDecorationLength(step, controlPointDistance, x2 - x1);
-        FloatPoint controlPoint1(0, yAxis + controlPointDistance);
-        FloatPoint controlPoint2(0, yAxis - controlPointDistance);
-
-        for (float x = x1; x + 2 * step <= x2;) {
-            controlPoint1.setX(x + step);
-            controlPoint2.setX(x + step);
-            x += 2 * step;
-            path.addBezierCurveTo(controlPoint1, controlPoint2, FloatPoint(x, yAxis));
-        }
+    if (x < x2) {
+      Curve::setX(controlPoint1, x + step);
+      Curve::setX(controlPoint2, x + step);
+      float xScale = 1.0 / (2 * step);
+      float yScale = 1.0 / (2 * controlPointDistance);
+      OwnPtr<UnitBezier> bezier = adoptPtr(new UnitBezier((Curve::x(controlPoint1) - x) * xScale,
+                                                          (Curve::y(controlPoint1) - yAxis) * yScale,
+                                                          (Curve::x(controlPoint2) - x) * xScale,
+                                                          (Curve::y(controlPoint2) - yAxis) * yScale));
+      float t = bezier->solveCurveX((x2 - x) / (2.0 * step), std::numeric_limits<double>::epsilon());
+      // following math based on http://stackoverflow.com/a/879213
+      float u1 = 1.0 - t;
+      float qxb =  x * u1 * u1 + Curve::x(controlPoint1) * 2 * t * u1 + Curve::x(controlPoint2) * t * t;
+      float qxd = Curve::x(controlPoint1) * u1 * u1 + Curve::x(controlPoint2) * 2 * t * u1 + (x+step) * t * t;
+      float qyb =  yAxis * u1 * u1 + Curve::y(controlPoint1) * 2 * t * u1 + Curve::y(controlPoint2) * t * t;
+      float qyd = Curve::y(controlPoint1) * u1 * u1 + Curve::y(controlPoint2) * 2 * t * u1 + yAxis * t * t;
+      float xb = x * u1 + Curve::x(controlPoint1) * t;
+      float yb = yAxis * u1 + Curve::y(controlPoint1) * t;
+      float xc = qxb;
+      float xd = qxb * u1 + qxd * t;
+      float yc = qyb;
+      float yd = qyb * u1 + qyd * t;
+      path.addBezierCurveTo(Curve::p(xb, yb), Curve::p(xc, yc), Curve::p(xd, yd));
     }
 
     context->setShouldAntialias(true);
     context->strokePath(path);
+}
+
+static void strokeWavyTextDecoration(GraphicsContext* context, FloatPoint p1, FloatPoint p2, float strokeThickness)
+{
+    if (p1.y() == p2.y()) // horizontal line
+      strokeWavyTextDecorationInternal<CurveAlongX>(context, p1, p2, strokeThickness);
+    else // vertical line
+      strokeWavyTextDecorationInternal<CurveAlongY>(context, p1, p2, strokeThickness);
 }
 
 static bool shouldSetDecorationAntialias(TextDecorationStyle decorationStyle)
@@ -962,7 +961,7 @@ void InlineTextBox::paintDecoration(GraphicsContext* context, const FloatPoint& 
     // Set the thick of the line to be 10% (or something else ?)of the computed font size and not less than 1px.
 
     // Update Underline thickness, in case we have Faulty Font Metrics calculating underline thickness by old method.
-    float textDecorationThickness = styleToUse->fontMetrics().underlineThickness();
+    float textDecorationThickness = styleToUse->fontMetrics().underlineThickness(); // TODO(ianh): Make this author-controllable
     int fontHeightInt  = (int)(styleToUse->fontMetrics().floatHeight() + 0.5);
     if ((textDecorationThickness == 0.f) || (textDecorationThickness >= (fontHeightInt >> 1)))
         textDecorationThickness = std::max(1.f, styleToUse->computedFontSize() / 10.f);

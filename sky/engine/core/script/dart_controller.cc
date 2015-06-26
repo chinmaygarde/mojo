@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "sky/engine/config.h"
 #include "sky/engine/core/script/dart_controller.h"
 
 #include "base/bind.h"
@@ -24,22 +23,34 @@
 #include "sky/engine/core/html/imports/HTMLImportChild.h"
 #include "sky/engine/core/loader/FrameLoaderClient.h"
 #include "sky/engine/core/script/dart_debugger.h"
-#include "sky/engine/core/script/dart_dependency_catcher.h"
-#include "sky/engine/core/script/dart_loader.h"
+#include "sky/engine/core/script/dart_library_provider_webview.h"
 #include "sky/engine/core/script/dart_service_isolate.h"
 #include "sky/engine/core/script/dom_dart_state.h"
 #include "sky/engine/public/platform/Platform.h"
 #include "sky/engine/tonic/dart_api_scope.h"
 #include "sky/engine/tonic/dart_class_library.h"
+#include "sky/engine/tonic/dart_dependency_catcher.h"
 #include "sky/engine/tonic/dart_error.h"
 #include "sky/engine/tonic/dart_gc_controller.h"
 #include "sky/engine/tonic/dart_invoke.h"
 #include "sky/engine/tonic/dart_isolate_scope.h"
+#include "sky/engine/tonic/dart_library_loader.h"
+#include "sky/engine/tonic/dart_snapshot_loader.h"
 #include "sky/engine/tonic/dart_state.h"
 #include "sky/engine/tonic/dart_wrappable.h"
 #include "sky/engine/wtf/text/TextPosition.h"
 
 namespace blink {
+namespace {
+
+void CreateEmptyRootLibraryIfNeeded() {
+  if (Dart_IsNull(Dart_RootLibrary())) {
+    Dart_LoadScript(Dart_NewStringFromCString("dart:empty"), Dart_EmptyString(),
+                    0, 0);
+  }
+}
+
+} // namespace
 
 #if ENABLE(DART_STRICT)
 static const char* kCheckedModeArgs[] = {"--enable_asserts",
@@ -110,27 +121,55 @@ Dart_Handle DartController::CreateLibrary(AbstractModule* module,
   return library;
 }
 
-void DartController::DidLoadMainLibrary(KURL url) {
+void DartController::DidLoadMainLibrary(String name) {
   DCHECK(Dart_CurrentIsolate() == dart_state()->isolate());
   DartApiScope dart_api_scope;
 
   if (LogIfError(Dart_FinalizeLoading(true)))
     return;
 
-  Dart_Handle library = Dart_LookupLibrary(
-      StringToDart(dart_state(), url.string()));
+  Dart_Handle library = Dart_LookupLibrary(StringToDart(dart_state(), name));
   // TODO(eseidel): We need to load a 404 page instead!
   if (LogIfError(library))
     return;
   DartInvokeAppField(library, ToDart("main"), 0, nullptr);
 }
 
-void DartController::LoadMainLibrary(const KURL& url, mojo::URLResponsePtr response) {
-  DartLoader& loader = dart_state()->loader();
+void DartController::DidLoadSnapshot() {
+  DCHECK(Dart_CurrentIsolate() == nullptr);
+  snapshot_loader_ = nullptr;
+
+  Dart_Isolate isolate = dart_state()->isolate();
+  DartIsolateScope isolate_scope(isolate);
+  DartApiScope dart_api_scope;
+
+  Dart_Handle library = Dart_RootLibrary();
+  if (LogIfError(library))
+    return;
+  DartInvokeAppField(library, ToDart("main"), 0, nullptr);
+}
+
+void DartController::RunFromSnapshot(
+    mojo::ScopedDataPipeConsumerHandle snapshot) {
+  snapshot_loader_ = adoptPtr(new DartSnapshotLoader(dart_state()));
+  snapshot_loader_->LoadSnapshot(
+      snapshot.Pass(),
+      base::Bind(&DartController::DidLoadSnapshot, weak_factory_.GetWeakPtr()));
+}
+
+void DartController::RunFromLibrary(const String& name,
+                                    DartLibraryProvider* library_provider) {
+  DartState::Scope scope(dart_state());
+  CreateEmptyRootLibraryIfNeeded();
+
+  DartLibraryLoader& loader = dart_state()->library_loader();
+  loader.set_library_provider(library_provider);
+
   DartDependencyCatcher dependency_catcher(loader);
-  loader.LoadLibrary(url, response.Pass());
+  loader.LoadLibrary(name);
   loader.WaitForDependencies(dependency_catcher.dependencies(),
-                             base::Bind(&DartController::DidLoadMainLibrary, weak_factory_.GetWeakPtr(), url));
+                             base::Bind(&DartController::DidLoadMainLibrary,
+                                        weak_factory_.GetWeakPtr(), name));
 }
 
 void DartController::LoadScriptInModule(
@@ -138,10 +177,17 @@ void DartController::LoadScriptInModule(
     const String& source,
     const TextPosition& position,
     const LoadFinishedCallback& finished_callback) {
-  DartIsolateScope isolate_scope(dart_state()->isolate());
-  DartApiScope dart_api_scope;
+  DartState::Scope scope(dart_state());
+  CreateEmptyRootLibraryIfNeeded();
 
-  DartDependencyCatcher dependency_catcher(dart_state()->loader());
+  DartLibraryLoader& loader = dart_state()->library_loader();
+
+  if (!library_provider_) {
+    library_provider_ = adoptPtr(new DartLibraryProviderWebView());
+    loader.set_library_provider(library_provider_.get());
+  }
+
+  DartDependencyCatcher dependency_catcher(loader);
   Dart_Handle library_handle = CreateLibrary(module, source, position);
   if (!library_handle)
     return finished_callback.Run(nullptr, nullptr);
@@ -150,7 +196,7 @@ void DartController::LoadScriptInModule(
 
   // TODO(eseidel): Better if the library/module retained its dependencies and
   // dependency waiting could be separate from library creation.
-  dart_state()->loader().WaitForDependencies(
+  dart_state()->library_loader().WaitForDependencies(
       dependency_catcher.dependencies(),
       base::Bind(finished_callback, module, library));
 }
@@ -193,7 +239,7 @@ static void UnhandledExceptionCallback(Dart_Handle error) {
 static Dart_Handle LibraryTagHandler(Dart_LibraryTag tag,
                                      Dart_Handle library,
                                      Dart_Handle url) {
-  return DartLoader::HandleLibraryTag(tag, library, url);
+  return DartLibraryLoader::HandleLibraryTag(tag, library, url);
 }
 
 static void IsolateShutdownCallback(void* callback_data) {
@@ -274,6 +320,7 @@ static Dart_Isolate IsolateCreateCallback(const char* script_uri,
 
   // Create & start the handle watcher isolate
   CHECK(kDartIsolateSnapshotBuffer);
+  // TODO(abarth): Who deletes this DartState instance?
   DartState* dart_state = new DartState();
   Dart_Isolate isolate =
       Dart_CreateIsolate("sky:handle_watcher", "", kDartIsolateSnapshotBuffer,
@@ -289,9 +336,8 @@ static Dart_Isolate IsolateCreateCallback(const char* script_uri,
     Builtin::SetNativeResolver(Builtin::kMojoInternalLibrary);
     Builtin::SetNativeResolver(Builtin::kIOLibrary);
 
-    // Ensure the isolate has a root library.
-    Dart_LoadScript(Dart_NewStringFromCString("dart:empty"),
-                    Dart_NewStringFromCString(""), 0, 0);
+    if (!script_uri)
+      CreateEmptyRootLibraryIfNeeded();
   }
 
   Dart_ExitIsolate();
@@ -322,9 +368,8 @@ void DartController::CreateIsolateFor(PassOwnPtr<DOMDartState> state) {
   char* error = nullptr;
   dom_dart_state_ = state;
   Dart_Isolate isolate = Dart_CreateIsolate(
-      dom_dart_state_->url().string().utf8().data(), "main",
-      kDartIsolateSnapshotBuffer, nullptr,
-      static_cast<DartState*>(dom_dart_state_.get()), &error);
+      dom_dart_state_->url().utf8().data(), "main", kDartIsolateSnapshotBuffer,
+      nullptr, static_cast<DartState*>(dom_dart_state_.get()), &error);
   Dart_SetMessageNotifyCallback(MessageNotifyCallback);
   CHECK(isolate) << error;
   dom_dart_state_->SetIsolate(isolate);
@@ -333,10 +378,6 @@ void DartController::CreateIsolateFor(PassOwnPtr<DOMDartState> state) {
 
   {
     DartApiScope apiScope;
-
-    // Ensure the isolate has a root library.
-    Dart_LoadScript(Dart_NewStringFromCString("dart:empty"),
-                    Dart_NewStringFromCString(""), 0, 0);
 
     Builtin::SetNativeResolver(Builtin::kBuiltinLibrary);
     Builtin::SetNativeResolver(Builtin::kMojoInternalLibrary);

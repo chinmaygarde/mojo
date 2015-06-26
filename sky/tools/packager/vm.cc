@@ -26,13 +26,12 @@ void InitDartVM() {
 Dart_Isolate CreateDartIsolate() {
   CHECK(blink::kDartIsolateSnapshotBuffer);
   char* error = nullptr;
-  Dart_Isolate isolate = Dart_CreateIsolate("http://example.com", "main",
+  Dart_Isolate isolate = Dart_CreateIsolate("dart:snapshot", "main",
                                             blink::kDartIsolateSnapshotBuffer,
                                             nullptr, nullptr, &error);
 
   CHECK(isolate) << error;
   CHECK(!LogIfError(Dart_SetLibraryTagHandler(HandleLibraryTag)));
-  LoadSkyInternals();
 
   Dart_ExitIsolate();
   return isolate;

@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "sky/engine/config.h"
 #include "sky/engine/bindings/exception_state.h"
 
 namespace blink {
@@ -21,6 +20,7 @@ ExceptionState::ExceptionState(Context context, const char* interfaceName) {
 ExceptionState::~ExceptionState() {
 }
 
+// TODO(iansf): Implement exceptions.
 void ExceptionState::ThrowDOMException(const ExceptionCode&,
                                        const String& message) {
 }

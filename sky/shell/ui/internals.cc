@@ -2,11 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "sky/engine/config.h"
 #include "sky/shell/ui/internals.h"
 
+#include "base/threading/worker_pool.h"
 #include "mojo/public/cpp/application/connect.h"
 #include "mojo/public/cpp/bindings/array.h"
+#include "services/asset_bundle/asset_unpacker_impl.h"
 #include "sky/engine/tonic/dart_builtin.h"
 #include "sky/engine/tonic/dart_converter.h"
 #include "sky/engine/tonic/dart_error.h"
@@ -25,13 +26,42 @@ Internals* GetInternals() {
   return static_cast<Internals*>(state->GetUserData(&kInternalsKey));
 }
 
+void ContentAsText(Dart_NativeArguments args) {
+  Dart_SetReturnValue(args, Dart_EmptyString());
+}
+
+void NotifyTestComplete(Dart_NativeArguments args) {
+}
+
+void RenderTreeAsText(Dart_NativeArguments args) {
+  Dart_SetReturnValue(args, Dart_EmptyString());
+}
+
+void TakeShellProxyHandle(Dart_NativeArguments args) {
+  Dart_SetIntegerReturnValue(args, 0);
+}
+
 void TakeServicesProvidedByEmbedder(Dart_NativeArguments args) {
   Dart_SetIntegerReturnValue(
       args, GetInternals()->TakeServicesProvidedByEmbedder().value());
 }
 
+void TakeServicesProvidedToEmbedder(Dart_NativeArguments args) {
+  Dart_SetIntegerReturnValue(args, 0);
+}
+
+void TakeServiceRegistry(Dart_NativeArguments args) {
+  Dart_SetIntegerReturnValue(args, 0);
+}
+
 const DartBuiltin::Natives kNativeFunctions[] = {
+    {"contentAsText", ContentAsText, 0},
+    {"notifyTestComplete", NotifyTestComplete, 1},
+    {"renderTreeAsText", RenderTreeAsText, 0},
+    {"takeShellProxyHandle", TakeShellProxyHandle, 0},
     {"takeServicesProvidedByEmbedder", TakeServicesProvidedByEmbedder, 0},
+    {"takeServicesProvidedToEmbedder", TakeServicesProvidedToEmbedder, 0},
+    {"takeServiceRegistry", TakeServiceRegistry, 0},
 };
 
 const DartBuiltin& GetBuiltin() {
@@ -51,9 +81,6 @@ const uint8_t* Symbolizer(Dart_NativeFunction native_function) {
 }
 
 const char kLibraryName[] = "dart:sky.internals";
-const char kLibrarySource[] = R"DART(
-int takeServicesProvidedByEmbedder() native "takeServicesProvidedByEmbedder";
-)DART";
 
 }  // namespace
 
@@ -62,18 +89,27 @@ void Internals::Create(Dart_Isolate isolate,
   DartState* state = DartState::From(isolate);
   state->SetUserData(&kInternalsKey, new Internals(service_provider.Pass()));
   Dart_Handle library =
-      Dart_LoadLibrary(Dart_NewStringFromCString(kLibraryName),
-                       Dart_NewStringFromCString(kLibrarySource), 0, 0);
+      Dart_LookupLibrary(Dart_NewStringFromCString(kLibraryName));
   CHECK(!LogIfError(library));
-  CHECK(!LogIfError(Dart_FinalizeLoading(true)));
   CHECK(!LogIfError(Dart_SetNativeResolver(library, Resolver, Symbolizer)));
 }
 
-Internals::Internals(mojo::ServiceProviderPtr service_provider)
-  : service_provider_(service_provider.Pass()) {
+Internals::Internals(mojo::ServiceProviderPtr platform_service_provider)
+  : service_provider_impl_(GetProxy(&service_provider_)),
+    platform_service_provider_(platform_service_provider.Pass()) {
+  service_provider_impl_.set_fallback_service_provider(
+      platform_service_provider_.get());
+  service_provider_impl_.AddService<mojo::asset_bundle::AssetUnpacker>(this);
 }
 
 Internals::~Internals() {
+}
+
+void Internals::Create(
+    mojo::ApplicationConnection* connection,
+    mojo::InterfaceRequest<mojo::asset_bundle::AssetUnpacker> request) {
+  new mojo::asset_bundle::AssetUnpackerImpl(
+      request.Pass(), base::WorkerPool::GetTaskRunner(true));
 }
 
 mojo::Handle Internals::TakeServicesProvidedByEmbedder() {

@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "sky/engine/config.h"
 #include "sky/viewer/internals.h"
 
 #include "mojo/public/cpp/application/connect.h"
@@ -91,15 +90,6 @@ const uint8_t* Symbolizer(Dart_NativeFunction native_function) {
 }
 
 const char kLibraryName[] = "dart:sky.internals";
-const char kLibrarySource[] = R"DART(
-String contentAsText() native "contentAsText";
-void notifyTestComplete(String test_result) native "notifyTestComplete";
-String renderTreeAsText() native "renderTreeAsText";
-int takeShellProxyHandle() native "takeShellProxyHandle";
-int takeServicesProvidedByEmbedder() native "takeServicesProvidedByEmbedder";
-int takeServicesProvidedToEmbedder() native "takeServicesProvidedToEmbedder";
-int takeServiceRegistry() native "takeServiceRegistry";
-)DART";
 
 }  // namespace
 
@@ -107,10 +97,8 @@ void Internals::Create(Dart_Isolate isolate, DocumentView* document_view) {
   DartState* state = DartState::From(isolate);
   state->SetUserData(&kInternalsKey, new Internals(document_view));
   Dart_Handle library =
-      Dart_LoadLibrary(Dart_NewStringFromCString(kLibraryName),
-                       Dart_NewStringFromCString(kLibrarySource), 0, 0);
+      Dart_LookupLibrary(Dart_NewStringFromCString(kLibraryName));
   CHECK(!LogIfError(library));
-  CHECK(!LogIfError(Dart_FinalizeLoading(true)));
   CHECK(!LogIfError(Dart_SetNativeResolver(library, Resolver, Symbolizer)));
 }
 

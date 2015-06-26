@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:sky' as sky;
 import "dart:sky.internals" as internals;
+import 'dart:typed_data';
 
 import 'package:sky/widgets/basic.dart';
 import 'package:sky/rendering/box.dart';
@@ -9,26 +10,19 @@ import 'package:sky/rendering/object.dart';
 
 typedef void Logger (String s);
 
-class TestDisplayList extends RenderObjectDisplayList {
-  TestDisplayList(double width, double height, this.logger, { this.indent: '' }) :
-    this.width = width,
-    this.height = height,
-    super(width, height) {
-    log("TestDisplayList() constructor: $width x $height");
+class TestRenderCanvas extends RenderCanvas {
+  TestRenderCanvas(sky.PictureRecorder recorder, Size size, this.logger, { this.indent: '' })
+    : size = size,
+      super(recorder, size) {
+    log("TestRenderCanvas() constructor: ${size.width} x ${size.height}");
   }
 
   final String indent;
-  final double width;
-  final double height;
+  final Size size;
 
   Logger logger;
   void log(String s) {
     logger("${indent} ${s}");
-  }
-
-  String explainPaint(Paint paint) {
-    assert(paint.toString() == "Instance of 'Paint'"); // if this assertion fails, remove all calls to explainPaint with just inlining $paint
-    return "Paint(${paint.color})";
   }
 
   void save() {
@@ -36,7 +30,7 @@ class TestDisplayList extends RenderObjectDisplayList {
   }
 
   void saveLayer(Rect bounds, Paint paint) {
-    log("saveLayer($bounds, ${explainPaint(paint)})");
+    log("saveLayer($bounds, $paint)");
   }
 
   void restore() {
@@ -59,8 +53,8 @@ class TestDisplayList extends RenderObjectDisplayList {
     log("skew($sx, $sy)");
   }
 
-  void concat(List<double> matrix9) {
-    log("concat($matrix9)");
+  void concat(Float32List matrix4) {
+    log("concat($matrix4)");
   }
 
   void clipRect(Rect rect) {
@@ -75,8 +69,8 @@ class TestDisplayList extends RenderObjectDisplayList {
     log("clipPath($path)");
   }
 
-  void drawLine(double x0, double y0, double x1, double y1, Paint paint) {
-    log("drawLine($x0, $y0, $x1, $y1, ${explainPaint(paint)})");
+  void drawLine(Point p1, Point p2, Paint paint) {
+    log("drawLine($p1, $p2, $paint)");
   }
 
   void drawPicture(sky.Picture picture) {
@@ -84,36 +78,40 @@ class TestDisplayList extends RenderObjectDisplayList {
   }
 
   void drawPaint(Paint paint) {
-    log("drawPaint(${explainPaint(paint)})");
+    log("drawPaint($paint)");
   }
 
   void drawRect(Rect rect, Paint paint) {
-    log("drawRect($rect, ${explainPaint(paint)})");
+    log("drawRect($rect, $paint)");
   }
 
   void drawRRect(sky.RRect rrect, Paint paint) {
-    log("drawRRect($rrect, ${explainPaint(paint)})");
+    log("drawRRect($rrect, $paint)");
   }
 
   void drawOval(Rect rect, Paint paint) {
-    log("drawOval($rect, ${explainPaint(paint)})");
+    log("drawOval($rect, $paint)");
   }
 
-  void drawCircle(double x, double y, double radius, Paint paint) {
-    log("drawCircle($x, $y, $radius, ${explainPaint(paint)})");
+  void drawCircle(Point c, double radius, Paint paint) {
+    log("drawCircle($c, $radius, $paint)");
   }
 
   void drawPath(Path path, Paint paint) {
-    log("drawPath($path, ${explainPaint(paint)})");
+    log("drawPath($path, $paint)");
   }
 
-  void drawImage(sky.Image image, double x, double y, Paint paint) {
-    log("drawImage($image, $x, $y, ${explainPaint(paint)})");
+  void drawImage(sky.Image image, Point p, Paint paint) {
+    log("drawImage($image, $p, $paint)");
+  }
+
+  void drawImageRect(sky.Image image, sky.Rect src, sky.Rect dst, Paint paint) {
+    log("drawImageRect($image, $src, $dst, paint)");
   }
 
   void paintChild(RenderObject child, Point position) {
     log("paintChild ${child.runtimeType} at $position");
-    child.paint(new TestDisplayList(width, height, logger, indent: "$indent  |"));
+    child.paint(new TestRenderCanvas(new sky.PictureRecorder(), size, logger, indent: "$indent  |"));
   }
 }
 
@@ -122,7 +120,7 @@ class TestRenderView extends RenderView {
   TestRenderView([ RenderBox child = null ]) : super(child: child) {
     print("TestRenderView enabled");
     attach();
-    rootConstraints = new ViewConstraints(width: 800.0, height: 600.0); // arbitrary figures
+    rootConstraints = new ViewConstraints(size: new Size(800.0, 600.0)); // arbitrary figures
     scheduleInitialLayout();
     syncCheckFrame();
   }
@@ -139,8 +137,10 @@ class TestRenderView extends RenderView {
     frame += 1;
     lastPaint = '';
     log("PAINT FOR FRAME #${frame} ----------------------------------------------");
-    var canvas = new TestDisplayList(rootConstraints.width, rootConstraints.height, log, indent: "${frame} |");
+    var recorder = new sky.PictureRecorder();
+    var canvas = new TestRenderCanvas(recorder, rootConstraints.size, log, indent: "${frame} |");
     paint(canvas);
+    recorder.endRecording();
     log("------------------------------------------------------------------------");
     RenderObject.debugDoingPaint = false;
   }

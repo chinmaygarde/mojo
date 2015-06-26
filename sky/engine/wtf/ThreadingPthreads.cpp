@@ -28,10 +28,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "sky/engine/config.h"
 #include "sky/engine/wtf/Threading.h"
-
-#if USE(PTHREADS)
 
 #include <errno.h>
 #include "sky/engine/wtf/DateMath.h"
@@ -49,6 +46,8 @@
 #include <limits.h>
 #include <sched.h>
 #include <sys/time.h>
+
+#if USE(PTHREADS)
 
 namespace WTF {
 

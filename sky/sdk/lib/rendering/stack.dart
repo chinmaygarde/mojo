@@ -35,11 +35,10 @@ class RenderStack extends RenderBox with ContainerRenderObjectMixin<RenderBox, S
   RenderStack({
     List<RenderBox> children
   }) {
-    if (children != null)
-      children.forEach((child) { add(child); });
+    addAll(children);
   }
 
-  void setParentData(RenderBox child) {
+  void setupParentData(RenderBox child) {
     if (child.parentData is! StackParentData)
       child.parentData = new StackParentData();
   }
@@ -71,7 +70,7 @@ class RenderStack extends RenderBox with ContainerRenderObjectMixin<RenderBox, S
       child = child.parentData.nextSibling;
     }
     if (!hasNonPositionedChildren)
-      return constraints.constrainWidth(double.INFINITY);
+      return constraints.constrainWidth();
     assert(width == constraints.constrainWidth(width));
     return width;
   }
@@ -102,9 +101,13 @@ class RenderStack extends RenderBox with ContainerRenderObjectMixin<RenderBox, S
       child = child.parentData.nextSibling;
     }
     if (!hasNonPositionedChildren)
-      return constraints.constrainHeight(double.INFINITY);
+      return constraints.constrainHeight();
     assert(height == constraints.constrainHeight(height));
     return height;
+  }
+
+  double getDistanceToActualBaseline(TextBaseline baseline) {
+    return defaultGetDistanceToHighestActualBaseline(baseline);
   }
 
   void performLayout() {
@@ -135,10 +138,9 @@ class RenderStack extends RenderBox with ContainerRenderObjectMixin<RenderBox, S
     if (hasNonPositionedChildren)
       size = new Size(width, height);
     else
-      size = constraints.constrain(Size.infinite);
+      size = constraints.biggest;
 
-    assert(size.width < double.INFINITY);
-    assert(size.height < double.INFINITY);
+    assert(!size.isInfinite);
     assert(size.width == constraints.constrainWidth(width));
     assert(size.height == constraints.constrainHeight(height));
 
@@ -147,45 +149,45 @@ class RenderStack extends RenderBox with ContainerRenderObjectMixin<RenderBox, S
     child = firstChild;
     while (child != null) {
       assert(child.parentData is StackParentData);
-      final StackParentData parentData = child.parentData;
+      final StackParentData childData = child.parentData;
 
-      if (parentData.isPositioned) {
+      if (childData.isPositioned) {
         BoxConstraints childConstraints = innerConstraints;
 
-        if (parentData.left != null && parentData.right != null)
-          childConstraints = childConstraints.applyWidth(parentData.right - parentData.left);
-        else if (parentData.left != null)
-          childConstraints = childConstraints.applyMaxWidth(size.width - parentData.left);
-        else if (parentData.right != null)
-          childConstraints = childConstraints.applyMaxWidth(size.width - parentData.right);
+        if (childData.left != null && childData.right != null)
+          childConstraints = childConstraints.applyWidth(childData.right - childData.left);
+        else if (childData.left != null)
+          childConstraints = childConstraints.applyMaxWidth(size.width - childData.left);
+        else if (childData.right != null)
+          childConstraints = childConstraints.applyMaxWidth(size.width - childData.right);
 
-        if (parentData.top != null && parentData.bottom != null)
-          childConstraints = childConstraints.applyHeight(parentData.bottom - parentData.top);
-        else if (parentData.top != null)
-          childConstraints = childConstraints.applyMaxHeight(size.height - parentData.top);
-        else if (parentData.bottom != null)
-          childConstraints = childConstraints.applyMaxHeight(size.width - parentData.bottom);
+        if (childData.top != null && childData.bottom != null)
+          childConstraints = childConstraints.applyHeight(childData.bottom - childData.top);
+        else if (childData.top != null)
+          childConstraints = childConstraints.applyMaxHeight(size.height - childData.top);
+        else if (childData.bottom != null)
+          childConstraints = childConstraints.applyMaxHeight(size.width - childData.bottom);
 
-        child.layout(childConstraints);
+        child.layout(childConstraints, parentUsesSize: true);
 
         double x = 0.0;
-        if (parentData.left != null)
-          x = parentData.left;
-        else if (parentData.right != null)
-          x = size.width - parentData.right - child.size.width;
+        if (childData.left != null)
+          x = childData.left;
+        else if (childData.right != null)
+          x = size.width - childData.right - child.size.width;
         assert(x >= 0.0 && x + child.size.width <= size.width);
 
         double y = 0.0;
-        if (parentData.top != null)
-          y = parentData.top;
-        else if (parentData.bottom != null)
-          y = size.height - parentData.bottom - child.size.height;
+        if (childData.top != null)
+          y = childData.top;
+        else if (childData.bottom != null)
+          y = size.height - childData.bottom - child.size.height;
         assert(y >= 0.0 && y + child.size.height <= size.height);
 
-        parentData.position = new Point(x, y);
+        childData.position = new Point(x, y);
       }
 
-      child = parentData.nextSibling;
+      child = childData.nextSibling;
     }
   }
 
@@ -193,7 +195,7 @@ class RenderStack extends RenderBox with ContainerRenderObjectMixin<RenderBox, S
     defaultHitTestChildren(result, position: position);
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     defaultPaint(canvas);
   }
 }

@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "sky/engine/config.h"
 #include "sky/engine/bindings/builtin.h"
 
 #include "base/logging.h"
@@ -26,7 +25,7 @@ struct LibraryDescriptor {
 
 const LibraryDescriptor kBuiltinLibraries[] = {
     /* { url_, has_natives_, native_symbol_, native_resolver_ } */
-    {"dart:sky_builtin",
+    {"dart:sky_builtin_natives",
      true,
      BuiltinNatives::NativeSymbol,
      BuiltinNatives::NativeLookup},

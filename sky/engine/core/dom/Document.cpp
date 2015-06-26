@@ -25,7 +25,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include "sky/engine/config.h"
 #include "sky/engine/core/dom/Document.h"
 
 #include "gen/sky/core/HTMLElementFactory.h"
@@ -2216,8 +2215,6 @@ Picture* Document::rootPicture() const
 void Document::setRootPicture(PassRefPtr<Picture> picture)
 {
     m_picture = picture;
-    if (m_picture)
-        PaintingTasks::enqueueCommit(this, m_picture->displayList());
     scheduleVisualUpdate();
 }
 

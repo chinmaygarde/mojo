@@ -28,7 +28,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "sky/engine/config.h"
 #include "sky/engine/core/rendering/RenderFlexibleBox.h"
 
 #include <limits>
@@ -120,14 +119,14 @@ static int synthesizedBaselineFromContentBox(const RenderBox* box, LineDirection
 int RenderFlexibleBox::baselinePosition(FontBaseline, bool, LineDirectionMode direction, LinePositionMode mode) const
 {
     ASSERT(mode == PositionOnContainingLine);
-    int baseline = firstLineBoxBaseline();
+    int baseline = firstLineBoxBaseline(FontBaselineOrAuto());
     if (baseline == -1)
         baseline = synthesizedBaselineFromContentBox(this, direction);
 
     return beforeMarginInLineDirection(direction) + baseline;
 }
 
-int RenderFlexibleBox::firstLineBoxBaseline() const
+int RenderFlexibleBox::firstLineBoxBaseline(FontBaselineOrAuto baselineType) const
 {
     if (m_numberOfInFlowChildrenOnFirstLine <= 0)
         return -1;
@@ -156,7 +155,7 @@ int RenderFlexibleBox::firstLineBoxBaseline() const
     if (isColumnFlow() && !hasOrthogonalFlow(baselineChild))
         return mainAxisExtentForChild(baselineChild) + baselineChild->logicalTop();
 
-    int baseline = baselineChild->firstLineBoxBaseline();
+    int baseline = baselineChild->firstLineBoxBaseline(baselineType);
     if (baseline == -1) {
         // FIXME: We should pass |direction| into firstLineBoxBaseline and stop bailing out if we're a writing mode root.
         // This would also fix some cases where the flexbox is orthogonal to its container.
@@ -169,7 +168,7 @@ int RenderFlexibleBox::firstLineBoxBaseline() const
 
 int RenderFlexibleBox::inlineBlockBaseline(LineDirectionMode direction) const
 {
-    int baseline = firstLineBoxBaseline();
+    int baseline = firstLineBoxBaseline(FontBaselineOrAuto());
     if (baseline != -1)
         return baseline;
 
@@ -681,7 +680,7 @@ bool RenderFlexibleBox::updateAutoMarginsInCrossAxis(RenderBox* child, LayoutUni
 
 LayoutUnit RenderFlexibleBox::marginBoxAscentForChild(RenderBox* child)
 {
-    LayoutUnit ascent = child->firstLineBoxBaseline();
+    LayoutUnit ascent = child->firstLineBoxBaseline(FontBaselineOrAuto());
     if (ascent == -1)
         ascent = crossAxisExtentForChild(child);
     return ascent + flowAwareMarginBeforeForChild(child);

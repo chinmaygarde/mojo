@@ -5,8 +5,8 @@
 import 'dart:math' as math;
 import 'dart:sky' as sky;
 
-import '../framework/animation/animated_value.dart';
-import '../framework/animation/curves.dart';
+import '../animation/animated_value.dart';
+import '../animation/curves.dart';
 import '../rendering/box.dart';
 import '../rendering/object.dart';
 import 'basic.dart';
@@ -52,10 +52,10 @@ class InkSplash {
     well.markNeedsPaint();
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     int opacity = (_kSplashInitialOpacity * (1.0 - (_radius.value / _targetRadius))).floor();
     sky.Paint paint = new sky.Paint()..color = new sky.Color(opacity << 24);
-    canvas.drawCircle(position.x, position.y, _radius.value, paint);
+    canvas.drawCircle(position, _radius.value, paint);
   }
 }
 
@@ -65,14 +65,15 @@ class RenderInkWell extends RenderProxyBox {
   final List<InkSplash> _splashes = new List<InkSplash>();
 
   void handleEvent(sky.Event event, BoxHitTestEntry entry) {
-    switch (event.type) {
-      case 'gesturetapdown':
-        // TODO(abarth): We should position the splash at the location of the tap.
-        _startSplash(event.primaryPointer, entry.localPosition);
-        break;
-      case 'gesturetap':
-        _confirmSplash(event.primaryPointer);
-        break;
+    if (event is sky.GestureEvent) {
+      switch (event.type) {
+        case 'gesturetapdown':
+          _startSplash(event.primaryPointer, entry.localPosition);
+          break;
+        case 'gesturetap':
+          _confirmSplash(event.primaryPointer);
+          break;
+      }
     }
   }
 
@@ -87,7 +88,7 @@ class RenderInkWell extends RenderProxyBox {
     markNeedsPaint();
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (!_splashes.isEmpty) {
       canvas.save();
       canvas.clipRect(new Rect.fromSize(size));

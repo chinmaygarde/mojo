@@ -33,10 +33,6 @@ ServiceRegistry::ServiceRegistry()
 ServiceRegistry::~ServiceRegistry() {
 }
 
-void ServiceRegistry::SetServiceConnector(ServiceConnector* connector) {
-  service_connector_registry_.set_service_connector(connector);
-}
-
 void ServiceRegistry::SetServiceConnectorForName(
     ServiceConnector* service_connector,
     const std::string& interface_name) {
@@ -66,7 +62,7 @@ ServiceProvider* ServiceRegistry::GetServiceProvider() {
 void ServiceRegistry::ConnectToService(const mojo::String& service_name,
                                        ScopedMessagePipeHandle client_handle) {
   service_connector_registry_.ConnectToService(this, service_name,
-                                               client_handle.Pass());
+                                               &client_handle);
 }
 
 }  // namespace internal

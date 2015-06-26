@@ -24,7 +24,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "sky/engine/config.h"
 #include "sky/engine/core/frame/LocalDOMWindow.h"
 
 #include <algorithm>
@@ -227,7 +226,8 @@ PassRefPtr<Document> LocalDOMWindow::installNewDocument(const DocumentInit& init
     m_document = Document::create(init);
     m_application = Application::create(m_document.get(), m_document.get(), m_document->url().string());
     m_eventQueue = DOMWindowEventQueue::create(m_document.get());
-    m_frame->dart().CreateIsolateFor(adoptPtr(new DOMDartState(m_document.get(), m_document->url())));
+    m_frame->dart().CreateIsolateFor(adoptPtr(
+        new DOMDartState(m_document.get(), m_document->url().string())));
 
     {
         Dart_Isolate isolate = m_frame->dart().dart_state()->isolate();

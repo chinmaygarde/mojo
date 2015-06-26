@@ -119,6 +119,13 @@ class AndroidShell(Shell):
         port = random.randint(4096, 16384)
         if port not in opened:
           return port
+
+    # Root is not required for `adb forward` (hence we don't check the return
+    # value), but if we can run adb as root, we have to do it now, because
+    # restarting adbd as root clears any port mappings. See
+    # https://github.com/domokit/devtools/issues/20.
+    self._RunAdbAsRoot()
+
     if device_port == 0:
       device_port = _FindAvailablePortOnDevice()
     subprocess.check_call(self._AdbCommand([
@@ -322,11 +329,9 @@ class AndroidShell(Shell):
       The url that the shell can use to access the content of |local_dir_path|.
     """
     assert local_dir_path
-    print 'starting http for', local_dir_path
-    server_address = StartHttpServer(local_dir_path,
+    server_address = StartHttpServer(local_dir_path, host_port=port,
                                      additional_mappings=additional_mappings)
 
-    print 'local port=%d' % server_address[1]
     return 'http://127.0.0.1:%d/' % self._ForwardDevicePortToHost(
         port, server_address[1])
 

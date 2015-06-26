@@ -15,6 +15,8 @@
 #include "sky/engine/public/web/WebSettings.h"
 #include "sky/engine/public/web/WebView.h"
 #include "sky/services/platform/platform_impl.h"
+#include "sky/shell/dart/dart_library_provider_files.h"
+#include "sky/shell/dart/dart_library_provider_network.h"
 #include "sky/shell/service_provider.h"
 #include "sky/shell/ui/animator.h"
 #include "sky/shell/ui/input_event_converter.h"
@@ -35,6 +37,12 @@ void ConfigureSettings(blink::WebSettings* settings) {
 
 PlatformImpl* g_platform_impl = nullptr;
 
+}
+
+Engine::Config::Config() {
+}
+
+Engine::Config::~Config() {
 }
 
 Engine::Engine(const Config& config)
@@ -178,18 +186,49 @@ void Engine::OnInputEvent(InputEventPtr event) {
     web_view_->handleInputEvent(*web_event);
 }
 
-void Engine::LoadURL(const mojo::String& mojo_url) {
-  GURL url(mojo_url);
-  if (!blink::WebView::shouldUseWebView(url)) {
-    if (web_view_) {
-      web_view_->close();
-      web_view_ = nullptr;
-    }
-    sky_view_ = blink::SkyView::Create(this);
-    sky_view_->Load(url);
-    UpdateSkyViewSize();
+void Engine::CloseWebViewIfNeeded() {
+  if (web_view_) {
+    web_view_->close();
+    web_view_ = nullptr;
+  }
+}
+
+void Engine::RunFromLibrary(const mojo::String& name) {
+  CloseWebViewIfNeeded();
+  sky_view_ = blink::SkyView::Create(this);
+  sky_view_->RunFromLibrary(blink::WebString::fromUTF8(name),
+                            dart_library_provider_.get());
+  UpdateSkyViewSize();
+}
+
+void Engine::RunFromNetwork(const mojo::String& url) {
+  if (blink::WebView::shouldUseWebView(GURL(url))) {
+    LoadUsingWebView(url);
     return;
   }
+  dart_library_provider_.reset(
+      new DartLibraryProviderNetwork(g_platform_impl->networkService()));
+  RunFromLibrary(url);
+}
+
+void Engine::RunFromFile(const mojo::String& main,
+                         const mojo::String& package_root) {
+  dart_library_provider_.reset(
+      new DartLibraryProviderFiles(base::FilePath(package_root)));
+  RunFromLibrary(main);
+}
+
+void Engine::RunFromSnapshot(const mojo::String& url,
+                             mojo::ScopedDataPipeConsumerHandle snapshot) {
+  CloseWebViewIfNeeded();
+  sky_view_ = blink::SkyView::Create(this);
+  sky_view_->RunFromSnapshot(blink::WebString::fromUTF8(url), snapshot.Pass());
+  UpdateSkyViewSize();
+}
+
+void Engine::LoadUsingWebView(const mojo::String& mojo_url) {
+  GURL url(mojo_url);
+  DCHECK(blink::WebView::shouldUseWebView(url));
 
   if (sky_view_)
     sky_view_ = nullptr;
@@ -244,8 +283,9 @@ mojo::NavigatorHost* Engine::NavigatorHost() {
 void Engine::RequestNavigate(mojo::Target target,
                              mojo::URLRequestPtr request) {
   // Ignoring target for now.
-  base::MessageLoop::current()->PostTask(FROM_HERE,
-      base::Bind(&Engine::LoadURL, GetWeakPtr(), request->url));
+  base::MessageLoop::current()->PostTask(
+      FROM_HERE,
+      base::Bind(&Engine::RunFromNetwork, GetWeakPtr(), request->url));
 }
 
 void Engine::DidNavigateLocally(const mojo::String& url) {

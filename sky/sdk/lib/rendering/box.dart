@@ -7,8 +7,8 @@ import 'dart:sky' as sky;
 
 import 'package:vector_math/vector_math.dart';
 
-import '../framework/debug/utils.dart';
-import '../framework/net/image_cache.dart' as image_cache;
+import '../base/debug.dart';
+import '../mojo/net/image_cache.dart' as image_cache;
 import '../painting/box_painter.dart';
 import 'object.dart';
 
@@ -42,10 +42,15 @@ class EdgeDims {
   final double bottom;
   final double left;
 
-  operator ==(EdgeDims other) => (top == other.top) ||
-                                 (right == other.right) ||
-                                 (bottom == other.bottom) ||
-                                 (left == other.left);
+  bool operator ==(other) {
+    if (identical(this, other))
+      return true;
+    return other is EdgeDims
+        && top == other.top
+        && right == other.right
+        && bottom == other.bottom
+        && left == other.left;
+  }
 
   int get hashCode {
     int value = 373;
@@ -58,7 +63,7 @@ class EdgeDims {
   String toString() => "EdgeDims($top, $right, $bottom, $left)";
 }
 
-class BoxConstraints {
+class BoxConstraints extends Constraints {
   const BoxConstraints({
     this.minWidth: 0.0,
     this.maxWidth: double.INFINITY,
@@ -72,7 +77,7 @@ class BoxConstraints {
       minHeight = size.height,
       maxHeight = size.height;
 
-  BoxConstraints.tightFor({
+  const BoxConstraints.tightFor({
     double width,
     double height
   }): minWidth = width != null ? width : 0.0,
@@ -85,6 +90,25 @@ class BoxConstraints {
       maxWidth = size.width,
       minHeight = 0.0,
       maxHeight = size.height;
+
+  const BoxConstraints.expandWidth({
+    this.maxHeight: double.INFINITY
+  }): minWidth = double.INFINITY,
+      maxWidth = double.INFINITY,
+      minHeight = 0.0;
+
+  const BoxConstraints.expandHeight({
+    this.maxWidth: double.INFINITY
+  }): minWidth = 0.0,
+      minHeight = double.INFINITY,
+      maxHeight = double.INFINITY;
+
+  static const BoxConstraints expand = const BoxConstraints(
+    minWidth: double.INFINITY,
+    maxWidth: double.INFINITY,
+    minHeight: double.INFINITY,
+    maxHeight: double.INFINITY
+  );
 
   BoxConstraints deflate(EdgeDims edges) {
     assert(edges != null);
@@ -158,16 +182,20 @@ class BoxConstraints {
                               maxHeight: math.min(maxHeight, newMaxHeight));
   }
 
+  BoxConstraints widthConstraints() => new BoxConstraints(minWidth: minWidth, maxWidth: maxWidth);
+
+  BoxConstraints heightConstraints() => new BoxConstraints(minHeight: minHeight, maxHeight: maxHeight);
+
   final double minWidth;
   final double maxWidth;
   final double minHeight;
   final double maxHeight;
 
-  double constrainWidth(double width) {
+  double constrainWidth([double width = double.INFINITY]) {
     return clamp(min: minWidth, max: maxWidth, value: width);
   }
 
-  double constrainHeight(double height) {
+  double constrainHeight([double height = double.INFINITY]) {
     return clamp(min: minHeight, max: maxHeight, value: height);
   }
 
@@ -177,9 +205,29 @@ class BoxConstraints {
       result = new _DebugSize(result, size._owner, size._canBeUsedByParent);
     return result;
   }
+  Size get biggest => new Size(constrainWidth(), constrainHeight());
+  Size get smallest => new Size(constrainWidth(0.0), constrainHeight(0.0));
 
   bool get isInfinite => maxWidth >= double.INFINITY && maxHeight >= double.INFINITY;
 
+  bool get hasTightWidth => minWidth >= maxWidth;
+  bool get hasTightHeight => minHeight >= maxHeight;
+  bool get isTight => hasTightWidth && hasTightHeight;
+
+  bool contains(Size size) {
+    return (minWidth <= size.width) && (size.width <= math.max(minWidth, maxWidth)) &&
+           (minHeight <= size.height) && (size.height <= math.max(minHeight, maxHeight));
+  }
+
+  bool operator ==(other) {
+    if (identical(this, other))
+      return true;
+    return other is BoxConstraints &&
+           minWidth == other.minWidth &&
+           maxWidth == other.maxWidth &&
+           minHeight == other.minHeight &&
+           maxHeight == other.maxHeight;
+  }
   int get hashCode {
     int value = 373;
     value = 37 * value + minWidth.hashCode;
@@ -188,13 +236,12 @@ class BoxConstraints {
     value = 37 * value + maxHeight.hashCode;
     return value;
   }
+
   String toString() => "BoxConstraints($minWidth<=w<$maxWidth, $minHeight<=h<$maxHeight)";
 }
 
 class BoxHitTestEntry extends HitTestEntry {
-  const BoxHitTestEntry(RenderBox target, this.localPosition)
-    : super(target);
-
+  const BoxHitTestEntry(HitTestTarget target, this.localPosition) : super(target);
   final Point localPosition;
 }
 
@@ -208,9 +255,11 @@ class BoxParentData extends ParentData {
   String toString() => 'position=$position';
 }
 
+enum TextBaseline { alphabetic, ideographic }
+
 abstract class RenderBox extends RenderObject {
 
-  void setParentData(RenderObject child) {
+  void setupParentData(RenderObject child) {
     if (child.parentData is! BoxParentData)
       child.parentData = new BoxParentData();
   }
@@ -242,30 +291,42 @@ abstract class RenderBox extends RenderObject {
     return constraints.constrainHeight(0.0);
   }
 
-  // This whole block should only be here in debug builds
-  bool _debugDoingThisLayout = false;
-  bool _debugCanParentUseSize;
-  void layoutWithoutResize() {
-    _debugDoingThisLayout = true;
-    _debugCanParentUseSize = false;
-    super.layoutWithoutResize();
-    _debugCanParentUseSize = null;
-    _debugDoingThisLayout = false;
+  // getDistanceToBaseline() should return the distance from the
+  // y-coordinate of the position of the box to the y-coordinate of
+  // the first given baseline in the box's contents. This is used by
+  // certain layout models to align adjacent boxes on a common
+  // baseline, regardless of padding, font size differences, etc. If
+  // there is no baseline, then it should return the distance from the
+  // y-coordinate of the position of the box to the y-coordinate of
+  // the bottom of the box, i.e., the height of the box.
+  // Only call this after layout has been performed.
+  double getDistanceToBaseline(TextBaseline baseline) {
+    assert(!needsLayout);
+    double result = getDistanceToActualBaseline(baseline);
+    if (result == null)
+      return size.height;
+    return result;
   }
-  void layout(dynamic constraints, { bool parentUsesSize: false }) {
-    _debugDoingThisLayout = true;
-    _debugCanParentUseSize = parentUsesSize;
-    super.layout(constraints, parentUsesSize: parentUsesSize);
-    _debugCanParentUseSize = null;
-    _debugDoingThisLayout = false;
+  // getDistanceToActualBaseline() should return the distance from the
+  // y-coordinate of the position of the box to the y-coordinate of
+  // the first given baseline in the box's contents, if any, or null
+  // otherwise.
+  double getDistanceToActualBaseline(TextBaseline baseline) {
+    assert(!needsLayout);
+    return null;
   }
 
   BoxConstraints get constraints => super.constraints;
+  bool debugDoesMeetConstraints() {
+    assert(constraints != null);
+    assert(_size != null);
+    assert(!_size.isInfinite);
+    return constraints.contains(_size);
+  }
   void performResize() {
     // default behaviour for subclasses that have sizedByParent = true
     size = constraints.constrain(Size.zero);
-    assert(size.height < double.INFINITY);
-    assert(size.width < double.INFINITY);
+    assert(!size.isInfinite);
   }
   void performLayout() {
     // descendants have to either override performLayout() to set both
@@ -281,19 +342,34 @@ abstract class RenderBox extends RenderObject {
   }
   void hitTestChildren(HitTestResult result, { Point position }) { }
 
+  // TODO(ianh): move size up to before constraints
   // TODO(ianh): In non-debug builds, this should all just be:
   // Size size = Size.zero;
   // In debug builds, however:
   Size _size = Size.zero;
-  Size get size => _size;
+  Size get size {
+    if (_size is _DebugSize) {
+      final _DebugSize _size = this._size; // TODO(ianh): Remove this once the analyzer is cleverer
+      assert(_size._owner == this);
+      if (RenderObject.debugActiveLayout != null) {
+        // we are always allowed to access our own size (for print debugging and asserts if nothing else)
+        // other than us, the only object that's allowed to read our size is our parent, if they're said they will
+        assert(debugDoingThisResize || debugDoingThisLayout ||
+               (RenderObject.debugActiveLayout == parent && _size._canBeUsedByParent));
+      }
+      assert(_size == this._size); // TODO(ianh): Remove this once the analyzer is cleverer
+    }
+    return _size;
+  }
   void set size(Size value) {
     assert(RenderObject.debugDoingLayout);
-    assert(_debugDoingThisLayout);
+    assert((sizedByParent && debugDoingThisResize) ||
+           (!sizedByParent && debugDoingThisLayout));
     if (value is _DebugSize) {
       assert(value._canBeUsedByParent);
       assert(value._owner.parent == this);
     }
-    _size = inDebugBuild ? new _DebugSize(value, this, _debugCanParentUseSize) : value;
+    _size = inDebugBuild ? new _DebugSize(value, this, debugCanParentUseSize) : value;
   }
 
   String debugDescribeSettings(String prefix) => '${super.debugDescribeSettings(prefix)}${prefix}size: ${size}\n';
@@ -331,6 +407,12 @@ class RenderProxyBox extends RenderBox with RenderObjectWithChildMixin<RenderBox
     return super.getMaxIntrinsicHeight(constraints);
   }
 
+  double getDistanceToActualBaseline(TextBaseline baseline) {
+    if (child != null)
+      return child.getDistanceToActualBaseline(baseline);
+    return super.getDistanceToActualBaseline(baseline);
+  }
+
   void performLayout() {
     if (child != null) {
       child.layout(constraints, parentUsesSize: true);
@@ -347,7 +429,7 @@ class RenderProxyBox extends RenderBox with RenderObjectWithChildMixin<RenderBox
       super.hitTestChildren(result, position: position);
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (child != null)
       child.paint(canvas);
   }
@@ -468,7 +550,7 @@ class RenderOpacity extends RenderProxyBox {
     markNeedsPaint();
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (child != null) {
       int a = (_opacity * 255).round();
 
@@ -482,7 +564,43 @@ class RenderOpacity extends RenderProxyBox {
 
       Paint paint = new Paint()
         ..color = new Color.fromARGB(a, 0, 0, 0)
-        ..setTransferMode(sky.TransferMode.srcOverMode);
+        ..setTransferMode(sky.TransferMode.srcOver);
+      canvas.saveLayer(null, paint);
+      child.paint(canvas);
+      canvas.restore();
+    }
+  }
+}
+
+class RenderColorFilter extends RenderProxyBox {
+  RenderColorFilter({ RenderBox child, Color color, sky.TransferMode transferMode })
+    : _color = color, _transferMode = transferMode, super(child) {
+  }
+
+  Color _color;
+  Color get color => _color;
+  void set color (Color value) {
+    assert(value != null);
+    if (_color == value)
+      return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  sky.TransferMode _transferMode;
+  sky.TransferMode get transferMode => _transferMode;
+  void set transferMode (sky.TransferMode value) {
+    assert(value != null);
+    if (_transferMode == value)
+      return;
+    _transferMode = value;
+    markNeedsPaint();
+  }
+
+  void paint(RenderCanvas canvas) {
+    if (child != null) {
+      Paint paint = new Paint()
+        ..setColorFilter(new sky.ColorFilter.mode(_color, _transferMode));
       canvas.saveLayer(null, paint);
       child.paint(canvas);
       canvas.restore();
@@ -493,7 +611,7 @@ class RenderOpacity extends RenderProxyBox {
 class RenderClipRect extends RenderProxyBox {
   RenderClipRect({ RenderBox child }) : super(child);
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (child != null) {
       canvas.save();
       canvas.clipRect(new Rect.fromSize(size));
@@ -503,10 +621,49 @@ class RenderClipRect extends RenderProxyBox {
   }
 }
 
+class RenderClipRRect extends RenderProxyBox {
+  RenderClipRRect({ RenderBox child, double xRadius, double yRadius })
+    : _xRadius = xRadius, _yRadius = yRadius, super(child) {
+    assert(_xRadius != null);
+    assert(_yRadius != null);
+  }
+
+  double _xRadius;
+  double get xRadius => _xRadius;
+  void set xRadius (double value) {
+    assert(value != null);
+    if (_xRadius == value)
+      return;
+    _xRadius = value;
+    markNeedsPaint();
+  }
+
+  double _yRadius;
+  double get yRadius => _yRadius;
+  void set yRadius (double value) {
+    assert(value != null);
+    if (_yRadius == value)
+      return;
+    _yRadius = value;
+    markNeedsPaint();
+  }
+
+  void paint(RenderCanvas canvas) {
+    if (child != null) {
+      Rect rect = new Rect.fromSize(size);
+      canvas.saveLayer(rect, new Paint());
+      sky.RRect rrect = new sky.RRect()..setRectXY(rect, xRadius, yRadius);
+      canvas.clipRRect(rrect);
+      child.paint(canvas);
+      canvas.restore();
+    }
+  }
+}
+
 class RenderClipOval extends RenderProxyBox {
   RenderClipOval({ RenderBox child }) : super(child);
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (child != null) {
       Rect rect = new Rect.fromSize(size);
       canvas.saveLayer(rect, new Paint());
@@ -527,9 +684,23 @@ abstract class RenderShiftedBox extends RenderBox with RenderObjectWithChildMixi
     this.child = child;
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (child != null)
       canvas.paintChild(child, child.parentData.position);
+  }
+
+  double getDistanceToActualBaseline(TextBaseline baseline) {
+    double result;
+    if (child != null) {
+      assert(!needsLayout);
+      result = child.getDistanceToActualBaseline(baseline);
+      assert(child.parentData is BoxParentData);
+      if (result != null)
+        result += child.parentData.position.y;
+    } else {
+      result = super.getDistanceToActualBaseline(baseline);
+    }
+    return result;
   }
 
   void hitTestChildren(HitTestResult result, { Point position }) {
@@ -670,8 +841,8 @@ class RenderPositionedBox extends RenderShiftedBox {
       child.layout(constraints.loosen(), parentUsesSize: true);
       size = constraints.constrain(child.size);
       assert(child.parentData is BoxParentData);
-      Size delta = size - child.size;
-      child.parentData.position = new Point(delta.width * horizontal, delta.height * vertical);
+      Offset delta = size - child.size;
+      child.parentData.position = (delta.scale(horizontal, vertical)).toPoint();
     } else {
       performResize();
     }
@@ -763,7 +934,7 @@ class RenderImage extends RenderBox {
     size = _sizeForConstraints(constraints);
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (_image == null) return;
     bool needsScale = size.width != _image.width || size.height != _image.height;
     if (needsScale) {
@@ -773,7 +944,7 @@ class RenderImage extends RenderBox {
       canvas.scale(widthScale, heightScale);
     }
     Paint paint = new Paint();
-    canvas.drawImage(_image, 0.0, 0.0, paint);
+    canvas.drawImage(_image, Point.origin, paint);
     if (needsScale)
       canvas.restore();
   }
@@ -798,7 +969,7 @@ class RenderDecoratedBox extends RenderProxyBox {
     markNeedsPaint();
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     assert(size.width != null);
     assert(size.height != null);
     _painter.paint(canvas, new Rect.fromSize(size));
@@ -859,7 +1030,7 @@ class RenderTransform extends RenderProxyBox {
 
   void hitTestChildren(HitTestResult result, { Point position }) {
     Matrix4 inverse = new Matrix4.zero();
-    double det = inverse.copyInverse(_transform);
+    /* double det = */ inverse.copyInverse(_transform);
     // TODO(abarth): Check the determinant for degeneracy.
 
     Vector3 position3 = new Vector3(position.x, position.y, 0.0);
@@ -868,7 +1039,7 @@ class RenderTransform extends RenderProxyBox {
     super.hitTestChildren(result, position: transformed);
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     canvas.save();
     canvas.concat(_transform.storage);
     super.paint(canvas);
@@ -904,7 +1075,7 @@ class RenderSizeObserver extends RenderProxyBox {
   }
 }
 
-typedef void CustomPaintCallback(sky.Canvas canvas, Size size);
+typedef void CustomPaintCallback(RenderCanvas canvas, Size size);
 
 class RenderCustomPaint extends RenderProxyBox {
 
@@ -930,7 +1101,7 @@ class RenderCustomPaint extends RenderProxyBox {
     super.attach();
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     assert(_callback != null);
     _callback(canvas, size);
     super.paint(canvas);
@@ -940,15 +1111,12 @@ class RenderCustomPaint extends RenderProxyBox {
 // RENDER VIEW LAYOUT MANAGER
 
 class ViewConstraints {
-
   const ViewConstraints({
-    this.width: 0.0, this.height: 0.0, this.orientation: null
+    this.size: Size.zero,
+    this.orientation
   });
-
-  final double width;
-  final double height;
+  final Size size;
   final int orientation;
-
 }
 
 class RenderView extends RenderObject with RenderObjectWithChildMixin<RenderBox> {
@@ -961,8 +1129,7 @@ class RenderView extends RenderObject with RenderObjectWithChildMixin<RenderBox>
   }
 
   Size _size = Size.zero;
-  double get width => _size.width;
-  double get height => _size.height;
+  Size get size => _size;
 
   int _orientation; // 0..3
   int get orientation => _orientation;
@@ -977,21 +1144,21 @@ class RenderView extends RenderObject with RenderObjectWithChildMixin<RenderBox>
     markNeedsLayout();
   }
 
+  void performResize() {
+    assert(false);
+  }
+
   void performLayout() {
     if (_rootConstraints.orientation != _orientation) {
       if (_orientation != null && child != null)
         child.rotate(oldAngle: _orientation, newAngle: _rootConstraints.orientation, time: timeForRotation);
       _orientation = _rootConstraints.orientation;
     }
-    _size = new Size(_rootConstraints.width, _rootConstraints.height);
-    assert(_size.height < double.INFINITY);
-    assert(_size.width < double.INFINITY);
+    _size = _rootConstraints.size;
+    assert(!_size.isInfinite);
 
-    if (child != null) {
+    if (child != null)
       child.layout(new BoxConstraints.tight(_size));
-      assert(child.size.width == width);
-      assert(child.size.height == height);
-    }
   }
 
   void rotate({ int oldAngle, int newAngle, Duration time }) {
@@ -1008,23 +1175,64 @@ class RenderView extends RenderObject with RenderObjectWithChildMixin<RenderBox>
     return true;
   }
 
-  void paint(RenderObjectDisplayList canvas) {
+  void paint(RenderCanvas canvas) {
     if (child != null)
       canvas.paintChild(child, Point.origin);
   }
 
   void paintFrame() {
+    sky.tracing.begin('RenderView.paintFrame');
     RenderObject.debugDoingPaint = true;
-    RenderObjectDisplayList canvas = new RenderObjectDisplayList(sky.view.width, sky.view.height);
-    paint(canvas);
-    sky.view.picture = canvas.endRecording();
-    RenderObject.debugDoingPaint = false;
+    try {
+      sky.PictureRecorder recorder = new sky.PictureRecorder();
+      RenderCanvas canvas = new RenderCanvas(recorder, _size);
+      paint(canvas);
+      sky.view.picture = recorder.endRecording();
+    } finally {
+      RenderObject.debugDoingPaint = false;
+      sky.tracing.end('RenderView.paintFrame');
+    }
   }
 
 }
 
-// DEFAULT BEHAVIORS FOR RENDERBOX CONTAINERS
+// HELPER METHODS FOR RENDERBOX CONTAINERS
 abstract class RenderBoxContainerDefaultsMixin<ChildType extends RenderBox, ParentDataType extends ContainerParentDataMixin<ChildType>> implements ContainerRenderObjectMixin<ChildType, ParentDataType> {
+
+  // This class, by convention, doesn't override any members of the superclass.
+  // It only provides helper functions that subclasses can call.
+
+  double defaultGetDistanceToFirstActualBaseline(TextBaseline baseline) {
+    assert(!needsLayout);
+    RenderBox child = firstChild;
+    while (child != null) {
+      assert(child.parentData is ParentDataType);
+      double result = child.getDistanceToActualBaseline(baseline);
+      if (result != null)
+        return result + child.parentData.position.y;
+      child = child.parentData.nextSibling;
+    }
+    return null;
+  }
+
+  double defaultGetDistanceToHighestActualBaseline(TextBaseline baseline) {
+    assert(!needsLayout);
+    double result;
+    RenderBox child = firstChild;
+    while (child != null) {
+      assert(child.parentData is ParentDataType);
+      double candidate = child.getDistanceToActualBaseline(baseline);
+      if (candidate != null) {
+        candidate += child.parentData.position.x;
+        if (result != null)
+          result = math.min(result, candidate);
+        else
+          result = candidate;
+      }
+      child = child.parentData.nextSibling;
+    }
+    return result;
+  }
 
   void defaultHitTestChildren(HitTestResult result, { Point position }) {
     // the x, y parameters have the top left of the node's box as the origin
@@ -1041,7 +1249,7 @@ abstract class RenderBoxContainerDefaultsMixin<ChildType extends RenderBox, Pare
     }
   }
 
-  void defaultPaint(RenderObjectDisplayList canvas) {
+  void defaultPaint(RenderCanvas canvas) {
     RenderBox child = firstChild;
     while (child != null) {
       assert(child.parentData is ParentDataType);

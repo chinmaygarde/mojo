@@ -5,7 +5,7 @@
 import 'dart:sky' as sky;
 
 import '../rendering/object.dart';
-import '../theme2/colors.dart' as colors;
+import '../theme/colors.dart' as colors;
 import 'basic.dart';
 import 'button_base.dart';
 
@@ -50,12 +50,12 @@ class Radio extends ButtonBase {
             // Draw the outer circle
             paint.setStyle(sky.PaintingStyle.stroke);
             paint.strokeWidth = 2.0;
-            canvas.drawCircle(kOuterRadius, kOuterRadius, kOuterRadius, paint);
+            canvas.drawCircle(const Point(kOuterRadius, kOuterRadius), kOuterRadius, paint);
 
             // Draw the inner circle
             if (value == groupValue) {
               paint.setStyle(sky.PaintingStyle.fill);
-              canvas.drawCircle(kOuterRadius, kOuterRadius, kInnerRadius, paint);
+              canvas.drawCircle(const Point(kOuterRadius, kOuterRadius), kInnerRadius, paint);
             }
           }
         )

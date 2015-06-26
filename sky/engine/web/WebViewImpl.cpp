@@ -28,7 +28,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "sky/engine/config.h"
 #include "sky/engine/web/WebViewImpl.h"
 
 #include "gen/sky/core/CSSValueKeywords.h"
@@ -104,7 +103,8 @@ bool WebView::shouldUseWebView(const GURL& url)
         filename.resize(queryStart);
     // For now .dart indicates we should use SkyView. Eventually we'll
     // use SkyView for all urls regardless of file extension.
-    return !EndsWith(filename, ".dart", false);
+    return !EndsWith(filename, ".dart", false)
+        && !EndsWith(filename, ".snapshot", false);
 }
 
 WebView* WebView::create(WebViewClient* client)

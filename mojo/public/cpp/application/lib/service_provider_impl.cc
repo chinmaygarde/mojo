@@ -9,12 +9,13 @@
 
 namespace mojo {
 
-ServiceProviderImpl::ServiceProviderImpl() : binding_(this) {
+ServiceProviderImpl::ServiceProviderImpl()
+    : binding_(this), fallback_service_provider_(nullptr) {
 }
 
 ServiceProviderImpl::ServiceProviderImpl(
     InterfaceRequest<ServiceProvider> request)
-    : binding_(this, request.Pass()) {
+    : binding_(this, request.Pass()), fallback_service_provider_(nullptr) {
 }
 
 ServiceProviderImpl::~ServiceProviderImpl() {
@@ -34,8 +35,12 @@ void ServiceProviderImpl::ConnectToService(
     ScopedMessagePipeHandle client_handle) {
   // TODO(beng): perhaps take app connection thru ctor so that we can pass
   // ApplicationConnection through?
-  service_connector_registry_.ConnectToService(nullptr, service_name,
-                                               client_handle.Pass());
+  bool service_found = service_connector_registry_.ConnectToService(
+      nullptr, service_name, &client_handle);
+  if (!service_found && fallback_service_provider_) {
+    fallback_service_provider_->ConnectToService(service_name,
+                                                 client_handle.Pass());
+  }
 }
 
 void ServiceProviderImpl::SetServiceConnectorForName(

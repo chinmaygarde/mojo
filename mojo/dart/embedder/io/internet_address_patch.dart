@@ -100,10 +100,18 @@ class _InternetAddress implements InternetAddress {
   }
 
   Future<InternetAddress> reverse() {
-    // TODO(johnmccutchan): Implement once a host resolver is available
-    // in the network service. For now, return LOOPBACK_IP_V4.
-    return InternetAddress.LOOPBACK_IP_V4;
+    var result = _reverse(this._in_addr);
+    if (result[0] == 0) {
+      // Success.
+      return new Future.value(
+          new _InternetAddress(this.address, result[1], this._in_addr));
+    } else {
+      // Failure. Throw an error.
+      throw new OSError(result[1], result[0]);
+    }
   }
+
+  static _reverse(List address) native "InternetAddress_Reverse";
 
   _InternetAddress(String this.address,
                    String this._host,
@@ -177,20 +185,27 @@ class _InternetAddress implements InternetAddress {
 
 int _internetAddressTypeToAddressFamily(InternetAddressType type) {
   if (type == null) {
-    return AddressFamily_UNSPECIFIED;
+    return NetAddressFamily_UNSPECIFIED;
   }
   if (type == InternetAddressType.IP_V4) {
-    return AddressFamily_IPV4;
+    return NetAddressFamily_IPV4;
   } else if (type == InternetAddressType.IP_V6) {
-    return AddressFamily_IPV6;
+    return NetAddressFamily_IPV6;
   }
-  return AddressFamily_UNSPECIFIED;
+  return NetAddressFamily_UNSPECIFIED;
 }
 
 class _MojoInternetAddress {
   static Future _lookup(String host, InternetAddressType type) async {
-    // TODO(johnmccutchan): Implement once a host resolver is available
-    // in the network service. For now, return LOOPBACK_IP_V4.
-    return [InternetAddress.LOOPBACK_IP_V4];
+    HostResolverProxy hostResolver = _getHostResolver();
+    var family = _internetAddressTypeToAddressFamily(type);
+    var response = await hostResolver.ptr.getHostAddresses(host, family);
+    _NetworkService._throwOnError(response.result);
+    var numAddresses = response.addresses.length;
+    var r = new List(numAddresses);
+    for (var i = 0; i < numAddresses; i++) {
+      r[i] = _NetworkServiceCodec._fromNetAddress(response.addresses[i]);
+    }
+    return r;
   }
 }

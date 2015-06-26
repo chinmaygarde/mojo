@@ -1,3 +1,12 @@
+## 0.0.12
+
+  - 29 changes: https://github.com/domokit/mojo/compare/e25e3e2...432ce45
+  - Fixed sky_tool to work again.
+
+## 0.0.11
+
+  - 197 changes: https://github.com/domokit/mojo/compare/bdbb0c7...fb1b726
+
 ## 0.0.10
 
   - 23 changes: https://github.com/domokit/mojo/compare/1b7bcee...be9dad7

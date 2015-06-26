@@ -7,10 +7,10 @@ import 'dart:sky' as sky;
 
 import 'package:vector_math/vector_math.dart';
 
-import '../framework/animation/animated_value.dart';
-import '../framework/animation/curves.dart';
-import '../theme2/colors.dart';
-import '../theme2/shadows.dart';
+import '../animation/animated_value.dart';
+import '../animation/curves.dart';
+import '../theme/colors.dart';
+import '../theme/shadows.dart';
 import 'animated_component.dart';
 import 'basic.dart';
 
@@ -54,9 +54,9 @@ class DrawerController {
 
   bool get isClosed => position.value == -_kWidth;
   bool get _isMostlyClosed => position.value <= -_kWidth / 2;
-  void toggle() => _isMostlyClosed ? _open() : _close();
+  void toggle() => _isMostlyClosed ? open() : close();
 
-  void handleMaskTap(_) => _close();
+  void handleMaskTap(_) => close();
   void handlePointerDown(_) => position.stop();
 
   void handlePointerMove(sky.PointerEvent event) {
@@ -75,11 +75,11 @@ class DrawerController {
       _settle();
   }
 
-  void _open() => _animateToPosition(0.0);
+  void open() => _animateToPosition(0.0);
 
-  void _close() => _animateToPosition(-_kWidth);
+  void close() => _animateToPosition(-_kWidth);
 
-  void _settle() => _isMostlyClosed ? _close() : _open();
+  void _settle() => _isMostlyClosed ? close() : open();
 
   void _animateToPosition(double targetPosition) {
     double distance = (targetPosition - position.value).abs();
@@ -114,9 +114,7 @@ class Drawer extends AnimatedComponent {
     this.children,
     this.level: 0
   }) : super(key: key) {
-    animate(controller.position, (double value) {
-      _position = value;
-    });
+    watch(controller.position);
   }
 
   List<Widget> children;
@@ -130,13 +128,11 @@ class Drawer extends AnimatedComponent {
     super.syncFields(source);
   }
 
-  double _position;
-
   Widget build() {
     Matrix4 transform = new Matrix4.identity();
-    transform.translate(_position);
+    transform.translate(controller.position.value);
 
-    double scaler = _position / _kWidth + 1;
+    double scaler = controller.position.value / _kWidth + 1;
     Color maskColor = new Color.fromARGB((0x7F * scaler).floor(), 0, 0, 0);
 
     var mask = new Listener(

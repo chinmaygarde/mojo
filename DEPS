@@ -24,7 +24,7 @@ vars = {
   'v8_revision': '230d131d173ab2d60291d303177bc04ec3f6e519',
   'angle_revision': 'bdd419f9f5b006e913606e7363125942c8ae06bc',
   'buildtools_revision': 'fa660d47fa1a6c649d5c29e001348447c55709e6',
-  'dart_revision': '7c1bccb26325d26b62324e5780eca1d13e98ccc4',
+  'dart_revision': '2c4605c199fef683587fe1fd4a5fe67da6ba3308',
   'dart_observatory_packages_revision': '45565',
   'pdfium_revision': 'b0115665b0f33971f1b7077740d51e155583cec0',
   'boringssl_revision': '642f1498d056dbba3e50ed5a232ab2f482626dec',
@@ -59,7 +59,7 @@ deps = {
    Var('chromium_git') + '/angle/angle.git' + '@' +  Var('angle_revision'),
 
   'src/third_party/icu':
-   Var('chromium_git') + '/chromium/deps/icu.git' + '@' + '7c81740601355556e630da515b74d889ba2f8d08',
+   Var('chromium_git') + '/chromium/deps/icu.git' + '@' + 'c3f79166089e5360c09e3053fce50e6e296c3204',
 
   'src/tools/grit':
     Var('chromium_git') + '/external/grit-i18n.git' + '@' + 'c1b1591a05209c1ad467e845ba8543c22f9072af', # from svn revision 189
@@ -132,9 +132,6 @@ deps_os = {
     'src/third_party/robolectric/lib':
       Var('chromium_git') + '/chromium/third_party/robolectric.git' + '@' + '6b63c99a8b6967acdb42cbed0adb067c80efc810',
 
-    'src/third_party/android_tools':
-     Var('chromium_git') + '/android_tools.git' + '@' + 'a3afc68f31ed9b32954954da95c855ee73820bd1',
-
     'src/third_party/appurify-python/src':
      Var('chromium_git') + '/external/github.com/appurify/appurify-python.git' + '@' + 'ee7abd5c5ae3106f72b2a0b9d2cb55094688e867',
 
@@ -170,6 +167,12 @@ hooks = [
     'name': 'dart',
     'pattern': '.',
     'action': ['python', 'src/tools/dart/update.py'],
+  },
+  {
+    # This downloads android_tools according to tools/android/VERSION_*.
+    'name': 'android_tools',
+    'pattern': '.',
+    'action': ['python', 'src/tools/android/download_android_tools.py'],
   },
   {
     # This downloads SDK extras and puts them in the

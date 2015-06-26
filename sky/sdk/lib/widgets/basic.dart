@@ -2,19 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:sky' as sky;
+
 import 'package:vector_math/vector_math.dart';
 
+import '../painting/text_style.dart';
 import '../rendering/block.dart';
 import '../rendering/box.dart';
 import '../rendering/flex.dart';
 import '../rendering/object.dart';
 import '../rendering/paragraph.dart';
 import '../rendering/stack.dart';
+import 'default_text_style.dart';
 import 'widget.dart';
 
 export '../rendering/box.dart' show BoxConstraints, BoxDecoration, Border, BorderSide, EdgeDims;
 export '../rendering/flex.dart' show FlexDirection, FlexJustifyContent, FlexAlignItems;
-export '../rendering/object.dart' show Point, Size, Rect, Color, Paint, Path;
+export '../rendering/object.dart' show Point, Offset, Size, Rect, Color, Paint, Path;
 export 'widget.dart' show Widget, Component, App, runApp, Listener, ParentDataNode;
 
 
@@ -32,6 +36,23 @@ class Opacity extends OneChildRenderObjectWrapper {
   void syncRenderObject(Opacity old) {
     super.syncRenderObject(old);
     root.opacity = opacity;
+  }
+}
+
+class ColorFilter extends OneChildRenderObjectWrapper {
+  ColorFilter({ String key, this.color, this.transferMode, Widget child })
+    : super(key: key, child: child);
+
+  RenderColorFilter get root => super.root;
+  final Color color;
+  final sky.TransferMode transferMode;
+
+  RenderColorFilter createNode() => new RenderColorFilter(color: color, transferMode: transferMode);
+
+  void syncRenderObject(ColorFilter old) {
+    super.syncRenderObject(old);
+    root.color = color;
+    root.transferMode = transferMode;
   }
 }
 
@@ -83,6 +104,24 @@ class ClipRect extends OneChildRenderObjectWrapper {
 
   RenderClipRect get root => super.root;
   RenderClipRect createNode() => new RenderClipRect();
+
+  // Nothing to sync, so we don't implement syncRenderObject()
+}
+
+class ClipRRect extends OneChildRenderObjectWrapper {
+  final double xRadius;
+  final double yRadius;
+  ClipRRect({ String key, Widget child, this.xRadius, this.yRadius })
+    : super(key: key, child: child);
+
+  RenderClipRRect get root => super.root;
+  RenderClipRRect createNode() => new RenderClipRRect(xRadius: xRadius, yRadius: yRadius);
+
+  void syncRenderObject(ClipRRect old) {
+    super.syncRenderObject(old);
+    root.xRadius = xRadius;
+    root.yRadius = yRadius;
+  }
 }
 
 class ClipOval extends OneChildRenderObjectWrapper {
@@ -91,8 +130,9 @@ class ClipOval extends OneChildRenderObjectWrapper {
 
   RenderClipOval get root => super.root;
   RenderClipOval createNode() => new RenderClipOval();
-}
 
+  // Nothing to sync, so we don't implement syncRenderObject()
+}
 
 // POSITIONING AND SIZING NODES
 
@@ -136,6 +176,8 @@ class Center extends OneChildRenderObjectWrapper {
 
   RenderPositionedBox get root => super.root;
   RenderPositionedBox createNode() => new RenderPositionedBox();
+
+  // Nothing to sync, so we don't implement syncRenderObject()
 }
 
 class SizedBox extends OneChildRenderObjectWrapper {
@@ -248,10 +290,7 @@ class Container extends Component {
     Widget current = child;
 
     if (child == null && width == null && height == null)
-      current = new SizedBox(
-        width: double.INFINITY,
-        height: double.INFINITY
-      );
+      current = new ConstrainedBox(constraints: BoxConstraints.expand);
 
     if (padding != null)
       current = new Padding(padding: padding, child: current);
@@ -345,7 +384,7 @@ class Flexible extends ParentDataNode {
     : super(child, new FlexBoxParentData()..flex = flex, key: key);
 }
 
-class Inline extends RenderObjectWrapper {
+class Inline extends LeafRenderObjectWrapper {
   Inline({ String key, this.text }) : super(key: key);
 
   RenderParagraph get root => super.root;
@@ -358,32 +397,63 @@ class Inline extends RenderObjectWrapper {
     root.inline = text;
   }
 
-  void insert(RenderObjectWrapper child, dynamic slot) {
-    assert(false);
-    // Inline does not support having children currently
+}
+
+class StyledText extends Component {
+  // elements ::= "string" | [<text-style> <elements>*]
+  // Where "string" is text to display and text-style is an instance of
+  // TextStyle. The text-style applies to all of the elements that follow.
+  StyledText({ this.elements, String key }) : super(key: key);
+
+  final dynamic elements;
+
+  InlineBase _toInline(dynamic element) {
+    if (element is String) {
+      return new InlineText(element);
+    }
+    if (element is Iterable && element.first is TextStyle) {
+      return new InlineStyle(element.first, element.skip(1).map(_toInline).toList());
+    }
+    throw new ArgumentError("invalid elements");
   }
 
+  Widget build() {
+    return new Inline(text: _toInline(elements));
+  }
 }
 
 class Text extends Component {
-  Text(data, { String key, TextStyle this.style }) : data = data, super(key: key);
+  Text(this.data, { String key, TextStyle this.style }) : super(key: key);
   final String data;
   final TextStyle style;
   bool get interchangeable => true;
   Widget build() {
     InlineBase text = new InlineText(data);
-    if (style != null) text = new InlineStyle(style, [text]);
+    TextStyle defaultStyle = DefaultTextStyle.of(this);
+    TextStyle combinedStyle;
+    if (defaultStyle != null) {
+      if (style != null)
+        combinedStyle = defaultStyle.merge(style);
+      else
+        combinedStyle = defaultStyle;
+    } else {
+      combinedStyle = style;      
+    }
+    if (combinedStyle != null)
+      text = new InlineStyle(combinedStyle, [text]);
     return new Inline(text: text);
   }
 }
 
-class Image extends RenderObjectWrapper {
+class Image extends LeafRenderObjectWrapper {
 
   Image({
-    String key,
-    this.src,
+    src,
     this.size
-  }) : super(key: key);
+  }) : src = src,
+       super(key: src) {
+    assert(src != null);
+  }
 
   RenderImage get root => super.root;
   RenderImage createNode() => new RenderImage(this.src, this.size);
@@ -397,17 +467,12 @@ class Image extends RenderObjectWrapper {
     root.requestedSize = size;
   }
 
-  void insert(RenderObjectWrapper child, dynamic slot) {
-    assert(false);
-    // Image does not support having children currently
-  }
-
 }
 
-class WidgetToRenderBoxAdapter extends RenderObjectWrapper {
+class WidgetToRenderBoxAdapter extends LeafRenderObjectWrapper {
 
   WidgetToRenderBoxAdapter(RenderBox renderBox)
-    : this.renderBox = renderBox,
+    : renderBox = renderBox,
       super(key: renderBox.hashCode.toString());
 
   RenderBox get root => super.root;
@@ -423,10 +488,11 @@ class WidgetToRenderBoxAdapter extends RenderObjectWrapper {
     }
   }
 
-  void insert(RenderObjectWrapper child, dynamic slot) {
-    assert(false);
-    // WidgetToRenderBoxAdapter cannot have Widget children; by
-    // definition, it is the transition out of the Widget world.
+  void remove() {
+    RenderObjectWrapper ancestor = findAncestor(RenderObjectWrapper);
+    assert(ancestor is RenderObjectWrapper);
+    ancestor.detachChildRoot(this);
+    super.remove();
   }
 
 }

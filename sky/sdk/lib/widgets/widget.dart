@@ -7,23 +7,34 @@ import 'dart:collection';
 import 'dart:mirrors';
 import 'dart:sky' as sky;
 
-import '../app/view.dart';
+import '../base/hit_test.dart';
 import '../rendering/box.dart';
 import '../rendering/object.dart';
+import '../rendering/sky_binding.dart';
 
 export '../rendering/box.dart' show BoxConstraints, BoxDecoration, Border, BorderSide, EdgeDims;
 export '../rendering/flex.dart' show FlexDirection;
-export '../rendering/object.dart' show Point, Size, Rect, Color, Paint, Path;
+export '../rendering/object.dart' show Point, Offset, Size, Rect, Color, Paint, Path;
 
 final bool _shouldLogRenderDuration = false;
+
+typedef void WidgetTreeWalker(Widget);
 
 // All Effen nodes derive from Widget. All nodes have a _parent, a _key and
 // can be sync'd.
 abstract class Widget {
 
   Widget({ String key }) : _key = key {
-    assert(this is AbstractWidgetRoot || this is App || _inRenderDirtyComponents); // you should not build the UI tree ahead of time, build it only during build()
+    assert(_isConstructedDuringBuild());
   }
+
+  // TODO(jackson): Remove this workaround for limitation of Dart mixins
+  Widget._withKey(String key) : _key = key {
+    assert(_isConstructedDuringBuild());
+  }
+
+  // you should not build the UI tree ahead of time, build it only during build()
+  bool _isConstructedDuringBuild() => this is AbstractWidgetRoot || this is App || _inRenderDirtyComponents;
 
   String _key;
   String get key => _key;
@@ -54,8 +65,12 @@ abstract class Widget {
     }
   }
 
+  // Override this if you have children and call walker on each child
+  void walkChildren(WidgetTreeWalker walker) { }
+
   static void _notifyMountStatusChanged() {
     try {
+      sky.tracing.begin("Widget._notifyMountStatusChanged");
       _notifyingMountStatus = true;
       for (Widget node in _mountedChanged) {
         if (node._wasMounted != node._mounted) {
@@ -69,6 +84,7 @@ abstract class Widget {
       _mountedChanged.clear();
     } finally {
       _notifyingMountStatus = false;
+      sky.tracing.end("Widget._notifyMountStatusChanged");
     }
   }
   void didMount() { }
@@ -108,11 +124,11 @@ abstract class Widget {
   // Returns the child which should be retained as the child of this node.
   Widget syncChild(Widget node, Widget oldNode, dynamic slot) {
 
-    assert(oldNode is! Component || !oldNode._disqualifiedFromEverAppearingAgain);
+    assert(oldNode is! Component || (oldNode is Component && !oldNode._disqualifiedFromEverAppearingAgain)); // TODO(ianh): Simplify this once the analyzer is cleverer
 
     if (node == oldNode) {
       assert(node == null || node.mounted);
-      assert(node is! RenderObjectWrapper || node._ancestor != null);
+      assert(node is! RenderObjectWrapper || (node is RenderObjectWrapper && node._ancestor != null)); // TODO(ianh): Simplify this once the analyzer is cleverer
       return node; // Nothing to do. Subtrees must be identical.
     }
 
@@ -165,36 +181,94 @@ abstract class Widget {
 // stylistic information, etc.
 abstract class TagNode extends Widget {
 
-  TagNode(Widget content, { String key })
-    : this.content = content, super(key: key);
+  TagNode(Widget child, { String key })
+    : this.child = child, super(key: key);
 
-  Widget content;
+  // TODO(jackson): Remove this workaround for limitation of Dart mixins
+  TagNode._withKey(Widget child, String key)
+    : this.child = child, super._withKey(key);
+
+  Widget child;
+
+  void walkChildren(WidgetTreeWalker walker) {
+    walker(child);
+  }
 
   void _sync(Widget old, dynamic slot) {
-    Widget oldContent = old == null ? null : (old as TagNode).content;
-    content = syncChild(content, oldContent, slot);
-    assert(content.root != null);
-    _root = content.root;
+    Widget oldChild = old == null ? null : (old as TagNode).child;
+    child = syncChild(child, oldChild, slot);
+    assert(child.root != null);
+    _root = child.root;
     assert(_root == root); // in case a subclass reintroduces it
   }
 
   void remove() {
-    if (content != null)
-      removeChild(content);
+    if (child != null)
+      removeChild(child);
     super.remove();
   }
 
   void detachRoot() {
-    if (content != null)
-      content.detachRoot();
+    if (child != null)
+      child.detachRoot();
   }
 
 }
 
 class ParentDataNode extends TagNode {
-  ParentDataNode(Widget content, this.parentData, { String key })
-    : super(content, key: key);
+  ParentDataNode(Widget child, this.parentData, { String key })
+    : super(child, key: key);
   final ParentData parentData;
+}
+
+abstract class _Heir implements Widget {
+  Map<Type, Inherited> _traits;
+  Inherited inheritedOfType(Type type) => _traits == null ? null : _traits[type];
+
+  static _Heir _getHeirAncestor(Widget widget) {
+    Widget ancestor = widget;
+    while (ancestor != null && !(ancestor is _Heir)) {
+      ancestor = ancestor.parent;
+    }
+    return ancestor as _Heir;
+  }
+
+  void _updateTraitsFromParent(Widget parent) {
+    _Heir ancestor = _getHeirAncestor(parent);
+    if (ancestor == null || ancestor._traits == null) return;
+    _updateTraits(ancestor._traits);
+  }
+
+  void _updateTraitsRecursively(Widget widget) {
+    if (widget is _Heir)
+      widget._updateTraits(_traits);
+    else
+      widget.walkChildren(_updateTraitsRecursively);
+  }
+
+  void _updateTraits(Map<Type, Inherited> newTraits) {
+    if (newTraits != _traits) {
+      _traits = newTraits;
+      walkChildren(_updateTraitsRecursively);
+    }
+  }
+}
+
+abstract class Inherited extends TagNode with _Heir {
+  Inherited({ String key, Widget child }) : super._withKey(child, key) {
+    _traits = new Map<Type, Inherited>();
+  }
+
+  void set _traits(Map<Type, Inherited> value) {
+    super._traits = new Map<Type, Inherited>.from(value)
+                                            ..[runtimeType] = this;
+  }
+
+  // TODO(jackson): When Dart supports super in mixins we can move to _Heir
+  void setParent(Widget parent) {
+    _updateTraitsFromParent(parent);
+    super.setParent(parent);
+  }
 }
 
 typedef void GestureEventListener(sky.GestureEvent e);
@@ -288,13 +362,12 @@ class Listener extends TagNode  {
 
 }
 
-
-abstract class Component extends Widget {
+abstract class Component extends Widget with _Heir {
 
   Component({ String key, bool stateful })
       : _stateful = stateful != null ? stateful : false,
         _order = _currentOrder + 1,
-        super(key: key);
+        super._withKey(key);
 
   static Component _currentlyBuilding;
   bool get _isBuilding => _currentlyBuilding == this;
@@ -309,6 +382,12 @@ abstract class Component extends Widget {
   void didMount() {
     assert(!_disqualifiedFromEverAppearingAgain);
     super.didMount();
+  }
+
+  // TODO(jackson): When Dart supports super in mixins we can move to _Heir
+  void setParent(Widget parent) {
+    _updateTraitsFromParent(parent);
+    super.setParent(parent);
   }
 
   void remove() {
@@ -415,7 +494,7 @@ abstract class Component extends Widget {
 
   void setState(Function fn()) {
     assert(!_disqualifiedFromEverAppearingAgain);
-    _stateful = true;
+    assert(_stateful);
     fn();
     if (_isBuilding || _dirty || !_mounted)
       return;
@@ -433,13 +512,12 @@ bool _buildScheduled = false;
 bool _inRenderDirtyComponents = false;
 
 void _buildDirtyComponents() {
-  //_tracing.begin('fn::_buildDirtyComponents');
-
   Stopwatch sw;
   if (_shouldLogRenderDuration)
     sw = new Stopwatch()..start();
 
   try {
+    sky.tracing.begin('Widgets._buildDirtyComponents');
     _inRenderDirtyComponents = true;
 
     List<Component> sortedDirtyComponents = _dirtyComponents.toList();
@@ -452,6 +530,7 @@ void _buildDirtyComponents() {
     _buildScheduled = false;
   } finally {
     _inRenderDirtyComponents = false;
+    sky.tracing.end('Widgets._buildDirtyComponents');
   }
 
   Widget._notifyMountStatusChanged();
@@ -460,8 +539,6 @@ void _buildDirtyComponents() {
     sw.stop();
     print('Render took ${sw.elapsedMicroseconds} microseconds');
   }
-
-  //_tracing.end('fn::_buildDirtyComponents');
 }
 
 void _scheduleComponentForRender(Component c) {
@@ -491,10 +568,10 @@ abstract class RenderObjectWrapper extends Widget {
   static RenderObjectWrapper _getMounted(RenderObject node) => _nodeMap[node];
 
   RenderObjectWrapper _ancestor;
-  void insert(RenderObjectWrapper child, dynamic slot);
+  void insertChildRoot(RenderObjectWrapper child, dynamic slot);
   void detachChildRoot(RenderObjectWrapper child);
 
-  void _sync(Widget old, dynamic slot) {
+  void _sync(RenderObjectWrapper old, dynamic slot) {
     // TODO(abarth): We should split RenderObjectWrapper into two pieces so that
     //               RenderViewObject doesn't need to inherit all this code it
     //               doesn't need.
@@ -503,8 +580,9 @@ abstract class RenderObjectWrapper extends Widget {
       _root = createNode();
       _ancestor = findAncestor(RenderObjectWrapper);
       if (_ancestor is RenderObjectWrapper)
-        _ancestor.insert(this, slot);
+        _ancestor.insertChildRoot(this, slot);
     } else {
+      assert(old is RenderObjectWrapper);
       _root = old.root;
       _ancestor = old._ancestor;
     }
@@ -549,6 +627,20 @@ abstract class RenderObjectWrapper extends Widget {
 
 }
 
+abstract class LeafRenderObjectWrapper extends RenderObjectWrapper {
+
+  LeafRenderObjectWrapper({ String key }) : super(key: key);
+
+  void insertChildRoot(RenderObjectWrapper child, dynamic slot) {
+    assert(false);
+  }
+
+  void detachChildRoot(RenderObjectWrapper child) {
+    assert(false);
+  }
+
+}
+
 abstract class OneChildRenderObjectWrapper extends RenderObjectWrapper {
 
   OneChildRenderObjectWrapper({ String key, Widget child })
@@ -557,13 +649,17 @@ abstract class OneChildRenderObjectWrapper extends RenderObjectWrapper {
   Widget _child;
   Widget get child => _child;
 
+  void walkChildren(WidgetTreeWalker walker) {
+    walker(child);
+  }
+
   void syncRenderObject(RenderObjectWrapper old) {
     super.syncRenderObject(old);
     Widget oldChild = old == null ? null : (old as OneChildRenderObjectWrapper).child;
     _child = syncChild(child, oldChild, null);
   }
 
-  void insert(RenderObjectWrapper child, dynamic slot) {
+  void insertChildRoot(RenderObjectWrapper child, dynamic slot) {
     final root = this.root; // TODO(ianh): Remove this once the analyzer is cleverer
     assert(root is RenderObjectWithChildMixin);
     assert(slot == null);
@@ -584,7 +680,6 @@ abstract class OneChildRenderObjectWrapper extends RenderObjectWrapper {
       removeChild(child);
     super.remove();
   }
-
 }
 
 abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
@@ -600,7 +695,12 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
 
   final List<Widget> children;
 
-  void insert(RenderObjectWrapper child, dynamic slot) {
+  void walkChildren(WidgetTreeWalker walker) {
+    for(Widget child in children)
+      walker(child);
+  }
+
+  void insertChildRoot(RenderObjectWrapper child, dynamic slot) {
     final root = this.root; // TODO(ianh): Remove this once the analyzer is cleverer
     assert(slot == null || slot is RenderObject);
     assert(root is ContainerRenderObjectMixin);
@@ -720,8 +820,12 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
       assert(old.root is ContainerRenderObjectMixin);
       assert(oldNode.root != null);
 
-      (old.root as ContainerRenderObjectMixin).remove(oldNode.root); // TODO(ianh): Remove cast once the analyzer is cleverer
-      root.add(oldNode.root, before: nextSibling);
+      if (old.root == root) {
+        root.move(oldNode.root, before: nextSibling);
+      } else {
+        (old.root as ContainerRenderObjectMixin).remove(oldNode.root); // TODO(ianh): Remove cast once the analyzer is cleverer
+        root.add(oldNode.root, before: nextSibling);
+      }
 
       return true;
     }
@@ -767,22 +871,19 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
 
 }
 
-class WidgetAppView extends AppView {
+class WidgetSkyBinding extends SkyBinding {
 
-  WidgetAppView({ RenderView renderViewOverride: null })
-      : super(renderViewOverride: renderViewOverride) {
-    assert(_appView == null);
-  }
+  WidgetSkyBinding({ RenderView renderViewOverride: null })
+      : super(renderViewOverride: renderViewOverride);
 
-  static WidgetAppView _appView;
-  static AppView get appView => _appView;
-  static void initWidgetAppView({ RenderView renderViewOverride: null }) {
-    if (_appView == null)
-      _appView = new WidgetAppView(renderViewOverride: renderViewOverride);
+  static void initWidgetSkyBinding({ RenderView renderViewOverride: null }) {
+    if (SkyBinding.instance == null)
+      new WidgetSkyBinding(renderViewOverride: renderViewOverride);
+    assert(SkyBinding.instance is WidgetSkyBinding);
   }
 
   void dispatchEvent(sky.Event event, HitTestResult result) {
-    assert(_appView == this);
+    assert(SkyBinding.instance == this);
     super.dispatchEvent(event, result);
     for (HitTestEntry entry in result.path.reversed) {
       Widget target = RenderObjectWrapper._getMounted(entry.target);
@@ -800,6 +901,25 @@ class WidgetAppView extends AppView {
 }
 
 abstract class App extends Component {
+
+  // Apps are assumed to be stateful
+  App({ String key }) : super(key: key, stateful: true);
+
+  void _handleEvent(sky.Event event) {
+    if (event.type == 'back')
+      onBack();
+  }
+
+  void didMount() {
+    super.didMount();
+    SkyBinding.instance.addEventListener(_handleEvent);
+  }
+
+  void didUnmount() {
+    super.didUnmount();
+    SkyBinding.instance.removeEventListener(_handleEvent);
+  }
+
   // Override this to handle back button behavior in your app
   void onBack() { }
 }
@@ -827,21 +947,20 @@ abstract class AbstractWidgetRoot extends Component {
 
 class RenderViewWrapper extends OneChildRenderObjectWrapper {
   RenderViewWrapper({ String key, Widget child }) : super(key: key, child: child);
-
   RenderView get root => super.root;
-  RenderView createNode() => WidgetAppView._appView.renderView;
+  RenderView createNode() => SkyBinding.instance.renderView;
 }
 
 class AppContainer extends AbstractWidgetRoot {
-  AppContainer(this.app);
-
+  AppContainer(this.app) {
+    assert(SkyBinding.instance is WidgetSkyBinding);
+  }
   final App app;
-
   Widget build() => new RenderViewWrapper(child: app);
 }
 
 void runApp(App app, { RenderView renderViewOverride }) {
-  WidgetAppView.initWidgetAppView(renderViewOverride: renderViewOverride);
+  WidgetSkyBinding.initWidgetSkyBinding(renderViewOverride: renderViewOverride);
   new AppContainer(app);
 }
 

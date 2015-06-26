@@ -1,3 +1,0 @@
-name: game
-dependencies:
-  box2d: any

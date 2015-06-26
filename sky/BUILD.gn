@@ -14,15 +14,11 @@ group("sky") {
     "//sky/engine/web:sky_unittests",
     "//sky/engine/wtf:unittests",
     "//sky/tools/imagediff",
+    "//sky/tools/packager($host_toolchain)",
     "//sky/tools/tester",
     "//sky/viewer",
     ":sky_apk",
   ]
-
-  # Mac's host toolchain doesn't support C++11 and can't build the packager.
-  if (host_os != "mac") {
-    deps += [ "//sky/tools/packager($host_toolchain)" ]
-  }
 
   if (is_android) {
     deps += [ "//sky/apk/stocks" ]
@@ -49,5 +45,9 @@ group("sky_apk") {
       "//sky/apk/demo",
       "//sky/services/intents",
     ]
+  }
+
+  if (is_linux) {
+    deps += [ "//sky/shell" ]
   }
 }
