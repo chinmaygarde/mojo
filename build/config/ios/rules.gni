@@ -187,7 +187,7 @@ template("ios_app") {
   # Copy the generated binaries and assets to their appropriate locations
 
   copy(copy_gen_target_name) {
-    visibility = [ ":$code_sign_gen_target_name" ]
+    visibility = [ ":$code_sign_gen_target_name", ":$final_target_name" ]
 
     sources = [
       "$root_build_dir/$app_name",
