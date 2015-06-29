@@ -131,21 +131,22 @@ class RenderTabBar extends RenderBox with
     defaultHitTestChildren(result, position: position);
   }
 
-  void _paintIndicator(RenderCanvas canvas, RenderBox selectedTab) {
+  void _paintIndicator(RenderCanvas canvas, RenderBox selectedTab, Offset offset) {
     if (indicatorColor == null)
       return;
 
     var size = new Size(selectedTab.size.width, _kTabIndicatorHeight);
     var point = new Point(
       selectedTab.parentData.position.x,
-      _tabBarHeight - _kTabIndicatorHeight);
-    Rect rect = new Rect.fromPointAndSize(point, size);
+      _tabBarHeight - _kTabIndicatorHeight
+    );
+    Rect rect = (point + offset) & size;
     canvas.drawRect(rect, new Paint()..color = indicatorColor);
   }
 
-  void paint(RenderCanvas canvas) {
+  void paint(RenderCanvas canvas, Offset offset) {
     if (backgroundColor != null) {
-      Rect rect = new Rect.fromSize(size);
+      Rect rect = offset & size;
       canvas.drawRect(rect, new Paint()..color = backgroundColor);
     }
 
@@ -153,9 +154,9 @@ class RenderTabBar extends RenderBox with
     RenderBox child = firstChild;
     while (child != null) {
       assert(child.parentData is TabBarParentData);
-      canvas.paintChild(child, child.parentData.position);
+      canvas.paintChild(child, child.parentData.position + offset);
       if (index++ == selectedIndex)
-        _paintIndicator(canvas, child);
+        _paintIndicator(canvas, child, offset);
       child = child.parentData.nextSibling;
     }
   }
@@ -260,7 +261,7 @@ class TabBar extends Component {
     this.onChanged
   }) : super(key: key);
 
-  final List<TabLabel> labels;
+  final Iterable<TabLabel> labels;
   final int selectedIndex;
   final SelectedIndexChanged onChanged;
 
@@ -285,9 +286,10 @@ class TabBar extends Component {
     assert(labels != null && labels.isNotEmpty);
     List<Widget> tabs = <Widget>[];
     bool textAndIcons = false;
-    for (int tabIndex = 0; tabIndex < labels.length; tabIndex++) {
-      tabs.add(_toTab(labels[tabIndex], tabIndex));
-      if (labels[tabIndex].text != null && labels[tabIndex].icon != null)
+    int tabIndex = 0;
+    for (TabLabel label in labels) {
+      tabs.add(_toTab(label, tabIndex++));
+      if (label.text != null && label.icon != null)
         textAndIcons = true;
     }
     return new TabBarWrapper(
@@ -296,6 +298,54 @@ class TabBar extends Component {
       backgroundColor: Theme.of(this).primary[500],
       indicatorColor: Theme.of(this).accent[200],
       textAndIcons: textAndIcons
+    );
+  }
+}
+
+class TabNavigatorView {
+  TabNavigatorView({ this.label, this.builder });
+
+  final TabLabel label;
+  final Builder builder;
+
+  Widget buildContent() {
+    assert(builder != null);
+    Widget content = builder();
+    assert(content != null);
+    return content;
+  }
+}
+
+class TabNavigator extends Component {
+  TabNavigator({
+    String key,
+    this.views,
+    this.selectedIndex: 0,
+    this.onChanged
+  }) : super(key: key);
+
+  final List<TabNavigatorView> views;
+  final int selectedIndex;
+  final SelectedIndexChanged onChanged;
+
+  void _handleSelectedIndexChanged(int tabIndex) {
+    if (onChanged != null)
+      onChanged(tabIndex);
+  }
+
+  Widget build() {
+    assert(views != null && views.isNotEmpty);
+    assert(selectedIndex >= 0 && selectedIndex < views.length);
+
+    TabBar tabBar = new TabBar(
+      labels: views.map((view) => view.label),
+      onChanged: _handleSelectedIndexChanged,
+      selectedIndex: selectedIndex
+    );
+
+    Widget content = views[selectedIndex].buildContent();
+    return new Flex([tabBar, new Flexible(child: content)],
+      direction: FlexDirection.vertical
     );
   }
 }

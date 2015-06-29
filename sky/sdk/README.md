@@ -88,7 +88,7 @@ to the underlying render tree.
  * To learn how to run Sky on your device, please see the
    [Running a Sky application](#running-a-sky-application) section in this
    document.
- * To dive into examples, please see the [examples directory](lib/example).
+ * To dive into examples, please see the [examples directory](example/).
 
 Services
 --------
@@ -146,7 +146,7 @@ Sky applications inside the `SkyDemo.apk` harness.  The `sky_tool` script
 expects to be run from the root directory of your application pub package. To
 run one of the examples in this SDK, try:
 
-1. `cd sdk/lib/example/stocks`
+1. `cd example/stocks`
 
 2. `pub get` to set up a copy of the sky package in the app directory.
 
@@ -187,7 +187,7 @@ Although it is possible to bundle the Sky Engine in your own app (instead of
 running your code inside SkyDemo.apk), right now doing so is difficult.
 
 There is one example of doing so if you're feeling brave:
-https://github.com/domokit/mojo/tree/master/sky/apk/stocks
+https://github.com/domokit/mojo/tree/master/sky/sdk/example/stocks
 
 Eventually we plan to make this much easier and support platforms other than
 Android, but that work is yet in progress.
