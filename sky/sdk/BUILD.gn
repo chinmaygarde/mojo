@@ -4,7 +4,7 @@
 
 import("//mojo/public/dart/rules.gni")
 
-dart_pkg("sdk") {
+dart_pkg("sky") {
   sources = [
     "CHANGELOG.md",
     "bin/init.dart",
@@ -25,51 +25,6 @@ dart_pkg("sdk") {
     "lib/editing/editable_text.dart",
     "lib/editing/input.dart",
     "lib/editing/keyboard.dart",
-    "lib/framework/animation/animated_value.dart",
-    "lib/framework/animation/curves.dart",
-    "lib/framework/animation/fling_curve.dart",
-    "lib/framework/animation/generators.dart",
-    "lib/framework/animation/mechanics.dart",
-    "lib/framework/animation/scroll_behavior.dart",
-    "lib/framework/components/animated_component.dart",
-    "lib/framework/components/button.dart",
-    "lib/framework/components/button_base.dart",
-    "lib/framework/components/checkbox.dart",
-    "lib/framework/components/drawer.dart",
-    "lib/framework/components/drawer_header.dart",
-    "lib/framework/components/fixed_height_scrollable.dart",
-    "lib/framework/components/floating_action_button.dart",
-    "lib/framework/components/icon.dart",
-    "lib/framework/components/icon_button.dart",
-    "lib/framework/components/ink_splash.dart",
-    "lib/framework/components/ink_well.dart",
-    "lib/framework/components/input.dart",
-    "lib/framework/components/material.dart",
-    "lib/framework/components/menu_divider.dart",
-    "lib/framework/components/menu_item.dart",
-    "lib/framework/components/modal_overlay.dart",
-    "lib/framework/components/popup_menu.dart",
-    "lib/framework/components/popup_menu_item.dart",
-    "lib/framework/components/radio.dart",
-    "lib/framework/components/scaffold.dart",
-    "lib/framework/components/scrollable.dart",
-    "lib/framework/components/tool_bar.dart",
-    "lib/framework/debug/shake-to-reload.sky",
-    "lib/framework/debug/tracing.dart",
-    "lib/framework/editing/editable_string.dart",
-    "lib/framework/editing/editable_text.dart",
-    "lib/framework/editing/keyboard.dart",
-    "lib/framework/embedder.dart",
-    "lib/framework/fn.dart",
-    "lib/framework/layout.dart",
-    "lib/framework/net/fetch.dart",
-    "lib/framework/node.dart",
-    "lib/framework/reflect.dart",
-    "lib/framework/shell.dart",
-    "lib/framework/theme/colors.dart",
-    "lib/framework/theme/shadows.dart",
-    "lib/framework/theme/typography.dart",
-    "lib/framework/theme/view_configuration.dart",
     "lib/mojo/asset_bundle.dart",
     "lib/mojo/embedder.dart",
     "lib/mojo/net/fetch.dart",
@@ -143,4 +98,37 @@ dart_pkg("sdk") {
   ]
 
   sdk_ext_directory = "$root_gen_dir/sky/bindings"
+}
+
+action("material_design_icons") {
+  input_dir = "lib/assets/material-design-icons"
+  output_dir = "$root_gen_dir/dart-pkg/sky/lib/assets"
+  stamp = "$target_gen_dir/material_design_icons_linked"
+
+  sources = [
+    "lib/assets/material-design-icons.sha1",
+  ]
+  outputs = [
+    stamp,
+  ]
+
+  script = "//build/symlink.py"
+  args = [
+    "--force",
+    rebase_path(input_dir, output_dir),
+    rebase_path(output_dir, root_build_dir),
+    "--touch",
+    rebase_path(stamp, root_build_dir),
+  ]
+
+  deps = [
+    ":sky",
+  ]
+}
+
+group("sdk") {
+  deps = [
+    ":sky",
+    ":material_design_icons",
+  ]
 }

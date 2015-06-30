@@ -8,7 +8,6 @@ import 'package:sky/rendering/box.dart';
 import 'package:sky/rendering/flex.dart';
 import 'package:sky/rendering/sky_binding.dart';
 import 'package:sky/theme/colors.dart' as colors;
-import 'package:sky/theme/typography.dart' as typography;
 import 'package:sky/widgets/basic.dart';
 import 'package:sky/widgets/material.dart';
 import 'package:sky/widgets/raised_button.dart';
@@ -80,6 +79,7 @@ class SectorApp extends App {
         toolbar: new ToolBar(
             center: new Text('Sector Layout in a Widget Tree')),
         body: new Material(
+          color: colors.Grey[50],
           edge: MaterialEdge.canvas,
           child: new Flex([
               new Container(

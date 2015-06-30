@@ -3,24 +3,58 @@
 // found in the LICENSE file.
 
 import 'package:sky/painting/text_style.dart';
-import 'package:sky/theme/typography.dart';
+import 'package:sky/theme/typography.dart' as typography;
 import 'package:sky/widgets/basic.dart';
-import 'package:sky/widgets/material.dart';
+import 'package:sky/widgets/card.dart';
 import 'package:sky/widgets/scaffold.dart';
 import 'package:sky/widgets/tabs.dart';
+import 'package:sky/widgets/theme.dart';
 import 'package:sky/widgets/tool_bar.dart';
 import 'package:sky/widgets/widget.dart';
 
 class TabbedNavigatorApp extends App {
-  int selectedIndex = 0;
+  // The index of the selected tab for each of the TabNavigators constructed below.
+  List<int> selectedIndices = new List<int>.filled(4, 0);
 
-  Widget _buildContent(String label) {
-    return new Center(
-      child: new Text(label, style: const TextStyle(fontSize: 48.0, fontWeight: extraBold))
+  TabNavigator _buildTabNavigator(int n, List<TabNavigatorView> views) {
+    return new TabNavigator(
+      views: views,
+      selectedIndex: selectedIndices[n],
+      onChanged: (tabIndex) {
+        setState(() { selectedIndices[n] = tabIndex; } );
+      }
     );
   }
 
-  Widget build() {
+  Widget _buildContent(String label) {
+    return new Center(
+      child: new Text(label, style: const TextStyle(fontSize: 48.0, fontWeight: FontWeight.w800))
+    );
+  }
+
+  TabNavigator _buildTextLabelsTabNavigator(int n) {
+    Iterable<TabNavigatorView> views = ["ONE", "TWO", "FREE", "FOUR"]
+      .map((text) {
+        return new TabNavigatorView(
+          label: new TabLabel(text: text),
+          builder: () => _buildContent(text)
+        );
+      });
+    return _buildTabNavigator(n, views.toList());
+  }
+
+  TabNavigator _buildIconLabelsTabNavigator(int n) {
+    Iterable<TabNavigatorView> views = ["event", "home", "android", "alarm", "face", "language"]
+      .map((icon_name) {
+        return new TabNavigatorView(
+          label: new TabLabel(icon: "action/${icon_name}_white"),
+          builder: () => _buildContent(icon_name)
+        );
+      });
+    return _buildTabNavigator(n, views.toList());
+  }
+
+  TabNavigator _buildTextAndIconLabelsTabNavigator(int n) {
     List<TabNavigatorView> views = <TabNavigatorView>[
       new TabNavigatorView(
         label: const TabLabel(text: 'STOCKS', icon: 'action/list_white'),
@@ -35,22 +69,42 @@ class TabbedNavigatorApp extends App {
         builder: () => _buildContent("Summary")
       )
     ];
+    return _buildTabNavigator(n, views);
+  }
 
-    TabNavigator tabNavigator = new TabNavigator(
-      views: views,
-      selectedIndex: selectedIndex,
-      onChanged: (tabIndex) {
-        setState(() { selectedIndex = tabIndex; } );
-      }
+  Container _buildCard(TabNavigator tabNavigator) {
+    return new Container(
+     child: new Card(child: tabNavigator),
+     padding: const EdgeDims.all(12.0),
+     decoration: new BoxDecoration(backgroundColor: Theme.of(this).primary[50])
     );
+  }
+
+  Widget build() {
+    List<TabNavigatorView> views = <TabNavigatorView>[
+      new TabNavigatorView(
+        label: const TabLabel(text: 'TEXT'),
+        builder: () => _buildCard(_buildTextLabelsTabNavigator(0))
+      ),
+      new TabNavigatorView(
+        label: const TabLabel(text: 'ICONS'),
+        builder: () => _buildCard(_buildIconLabelsTabNavigator(1))
+      ),
+      new TabNavigatorView(
+        label: const TabLabel(text: 'BOTH'),
+        builder: () => _buildCard(_buildTextAndIconLabelsTabNavigator(2))
+      )
+    ];
+
+    TabNavigator tabNavigator = _buildTabNavigator(3, views);
 
     ToolBar toolbar = new ToolBar(
-      center: new Text('Tabbed Navigator', style: white.title)
+      center: new Text('Tabbed Navigator', style: typography.white.title)
     );
 
     return new Scaffold(
       toolbar: toolbar,
-      body: new Material(child: tabNavigator)
+      body: tabNavigator
     );
   }
 }
