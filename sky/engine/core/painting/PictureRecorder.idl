@@ -6,4 +6,5 @@
 ] interface PictureRecorder {
   readonly attribute boolean isRecording;
   Picture endRecording();
+  Drawable endRecordingAsDrawable();
 };

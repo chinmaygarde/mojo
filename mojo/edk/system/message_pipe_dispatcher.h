@@ -20,15 +20,17 @@ class MessagePipeDispatcherTransport;
 
 // This is the |Dispatcher| implementation for message pipes (created by the
 // Mojo primitive |MojoCreateMessagePipe()|). This class is thread-safe.
-class MOJO_SYSTEM_IMPL_EXPORT MessagePipeDispatcher : public Dispatcher {
+class MOJO_SYSTEM_IMPL_EXPORT MessagePipeDispatcher final : public Dispatcher {
  public:
   // The default options to use for |MojoCreateMessagePipe()|. (Real uses
   // should obtain this via |ValidateCreateOptions()| with a null |in_options|;
   // this is exposed directly for testing convenience.)
   static const MojoCreateMessagePipeOptions kDefaultCreateOptions;
 
-  MessagePipeDispatcher(
-      const MojoCreateMessagePipeOptions& /*validated_options*/);
+  static scoped_refptr<MessagePipeDispatcher> Create(
+      const MojoCreateMessagePipeOptions& /*validated_options*/) {
+    return make_scoped_refptr(new MessagePipeDispatcher());
+  }
 
   // Validates and/or sets default options for |MojoCreateMessagePipeOptions|.
   // If non-null, |in_options| must point to a struct of at least
@@ -62,6 +64,7 @@ class MOJO_SYSTEM_IMPL_EXPORT MessagePipeDispatcher : public Dispatcher {
  private:
   friend class MessagePipeDispatcherTransport;
 
+  MessagePipeDispatcher();
   ~MessagePipeDispatcher() override;
 
   // Gets a dumb pointer to |message_pipe_|. This must be called under the

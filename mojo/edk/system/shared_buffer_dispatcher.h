@@ -22,7 +22,8 @@ namespace system {
 // TODO(vtl): We derive from SimpleDispatcher, even though we don't currently
 // have anything that's waitable. I want to add a "transferrable" wait flag
 // (which would entail overriding |GetHandleSignalsStateImplNoLock()|, etc.).
-class MOJO_SYSTEM_IMPL_EXPORT SharedBufferDispatcher : public SimpleDispatcher {
+class MOJO_SYSTEM_IMPL_EXPORT SharedBufferDispatcher final
+    : public SimpleDispatcher {
  public:
   // The default options to use for |MojoCreateSharedBuffer()|. (Real uses
   // should obtain this via |ValidateCreateOptions()| with a null |in_options|;
@@ -40,6 +41,8 @@ class MOJO_SYSTEM_IMPL_EXPORT SharedBufferDispatcher : public SimpleDispatcher {
 
   // Static factory method: |validated_options| must be validated (obviously).
   // On failure, |*result| will be left as-is.
+  // TODO(vtl): This should probably be made to return a scoped_refptr and have
+  // a MojoResult out parameter instead.
   static MojoResult Create(
       embedder::PlatformSupport* platform_support,
       const MojoCreateSharedBufferOptions& validated_options,
@@ -58,8 +61,13 @@ class MOJO_SYSTEM_IMPL_EXPORT SharedBufferDispatcher : public SimpleDispatcher {
       embedder::PlatformHandleVector* platform_handles);
 
  private:
+  static scoped_refptr<SharedBufferDispatcher> CreateInternal(
+      scoped_refptr<embedder::PlatformSharedBuffer> shared_buffer) {
+    return make_scoped_refptr(new SharedBufferDispatcher(shared_buffer.Pass()));
+  }
+
   explicit SharedBufferDispatcher(
-      scoped_refptr<embedder::PlatformSharedBuffer> shared_buffer_);
+      scoped_refptr<embedder::PlatformSharedBuffer> shared_buffer);
   ~SharedBufferDispatcher() override;
 
   // Validates and/or sets default options for

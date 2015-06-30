@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:sky/rendering/sky_binding.dart';
 import 'package:sky/theme/colors.dart' as colors;
-import 'package:sky/theme/theme_data.dart';
 import 'package:sky/widgets/basic.dart';
 import 'package:sky/widgets/navigator.dart';
 import 'package:sky/widgets/theme.dart';
@@ -22,11 +20,11 @@ class StocksApp extends App {
     _navigationState = new NavigationState([
       new Route(
         name: '/', 
-        builder: (navigator, route) => new StockHome(navigator, _stocks, stockMode, modeUpdater)
+        builder: (navigator, route) => new StockHome(navigator, _stocks, optimismSetting, modeUpdater)
       ),
       new Route(
         name: '/settings',
-        builder: (navigator, route) => new StockSettings(navigator, stockMode, settingsUpdater)
+        builder: (navigator, route) => new StockSettings(navigator, optimismSetting, backupSetting, settingsUpdater)
       ),
     ]);
   }
@@ -38,16 +36,19 @@ class StocksApp extends App {
     // TODO(jackson): Need a way to invoke default back behavior here
   }
 
-  StockMode stockMode = StockMode.optimistic;
-  void modeUpdater(StockMode value) {
+  StockMode optimismSetting = StockMode.optimistic;
+  BackupMode backupSetting = BackupMode.disabled;
+  void modeUpdater(StockMode optimism) {
     setState(() {
-      stockMode = value;
+      optimismSetting = optimism;
     });
   }
-  void settingsUpdater({StockMode mode}) {
+  void settingsUpdater({ StockMode optimism, BackupMode backup }) {
     setState(() {
-      if (mode != null)
-        stockMode = mode;
+      if (optimism != null)
+        optimismSetting = optimism;
+      if (backup != null)
+        backupSetting = backup;
     });
   }
 
@@ -62,21 +63,28 @@ class StocksApp extends App {
   }
 
   Widget build() {
-    return new Theme(
-      data: new ThemeData.light(
+
+    ThemeData theme;
+    if (optimismSetting == StockMode.optimistic) {
+      theme = new ThemeData.light(
         primary: colors.Purple,
         accent: colors.RedAccent,
-        darkToolbar: true),
-      child: new Navigator(_navigationState)
-    );
-  }
+        darkToolbar: true
+      );
+    } else {
+      theme = new ThemeData.dark(
+        primary: colors.Red,
+        accent: colors.PurpleAccent
+      );
+    }
+
+    return new Theme(
+      data: theme,
+        child: new Navigator(_navigationState)
+     );
+   }
 }
 
 void main() {
-  print("starting stocks app!");
   runApp(new StocksApp());
-  SkyBinding.instance.onFrame = () {
-    // uncomment this for debugging:
-    // SkyBinding.instance.debugDumpRenderTree();
-  };
 }

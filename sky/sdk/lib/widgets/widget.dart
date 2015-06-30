@@ -50,6 +50,8 @@ abstract class Widget {
 
   void setParent(Widget newParent) {
     assert(!_notifyingMountStatus);
+    if (_parent == newParent)
+      return;
     _parent = newParent;
     if (newParent == null) {
       if (_mounted) {
@@ -146,6 +148,7 @@ abstract class Widget {
         if (node._retainStatefulNodeIfPossible(oldNode)) {
           assert(oldNode.mounted);
           assert(!node.mounted);
+          oldNode.setParent(this);
           oldNode._sync(node, slot);
           assert(oldNode.root is RenderObject);
           return oldNode;
@@ -219,54 +222,8 @@ class ParentDataNode extends TagNode {
   final ParentData parentData;
 }
 
-abstract class _Heir implements Widget {
-  Map<Type, Inherited> _traits;
-  Inherited inheritedOfType(Type type) => _traits == null ? null : _traits[type];
-
-  static _Heir _getHeirAncestor(Widget widget) {
-    Widget ancestor = widget;
-    while (ancestor != null && !(ancestor is _Heir)) {
-      ancestor = ancestor.parent;
-    }
-    return ancestor as _Heir;
-  }
-
-  void _updateTraitsFromParent(Widget parent) {
-    _Heir ancestor = _getHeirAncestor(parent);
-    if (ancestor == null || ancestor._traits == null) return;
-    _updateTraits(ancestor._traits);
-  }
-
-  void _updateTraitsRecursively(Widget widget) {
-    if (widget is _Heir)
-      widget._updateTraits(_traits);
-    else
-      widget.walkChildren(_updateTraitsRecursively);
-  }
-
-  void _updateTraits(Map<Type, Inherited> newTraits) {
-    if (newTraits != _traits) {
-      _traits = newTraits;
-      walkChildren(_updateTraitsRecursively);
-    }
-  }
-}
-
-abstract class Inherited extends TagNode with _Heir {
-  Inherited({ String key, Widget child }) : super._withKey(child, key) {
-    _traits = new Map<Type, Inherited>();
-  }
-
-  void set _traits(Map<Type, Inherited> value) {
-    super._traits = new Map<Type, Inherited>.from(value)
-                                            ..[runtimeType] = this;
-  }
-
-  // TODO(jackson): When Dart supports super in mixins we can move to _Heir
-  void setParent(Widget parent) {
-    _updateTraitsFromParent(parent);
-    super.setParent(parent);
-  }
+abstract class Inherited extends TagNode {
+  Inherited({ String key, Widget child }) : super._withKey(child, key);
 }
 
 typedef void GestureEventListener(sky.GestureEvent e);
@@ -276,6 +233,7 @@ typedef void EventListener(sky.Event e);
 class Listener extends TagNode  {
 
   Listener({
+    String key,
     Widget child,
     EventListener onWheel,
     GestureEventListener onGestureFlingCancel,
@@ -303,7 +261,7 @@ class Listener extends TagNode  {
          onPointerUp: onPointerUp,
          custom: custom
        ),
-       super(child);
+       super(child, key: key);
 
   final Map<String, sky.EventListener> listeners;
 
@@ -360,7 +318,7 @@ class Listener extends TagNode  {
 
 }
 
-abstract class Component extends Widget with _Heir {
+abstract class Component extends Widget {
 
   Component({ String key, bool stateful })
       : _stateful = stateful != null ? stateful : false,
@@ -382,12 +340,6 @@ abstract class Component extends Widget with _Heir {
     super.didMount();
   }
 
-  // TODO(jackson): When Dart supports super in mixins we can move to _Heir
-  void setParent(Widget parent) {
-    _updateTraitsFromParent(parent);
-    super.setParent(parent);
-  }
-
   void remove() {
     assert(_built != null);
     assert(root != null);
@@ -400,6 +352,13 @@ abstract class Component extends Widget with _Heir {
     assert(_built != null);
     assert(root != null);
     _built.detachRoot();
+  }
+
+  Inherited inheritedOfType(Type targetType) {
+    Widget ancestor = parent;
+    while (ancestor != null && ancestor.runtimeType != targetType)
+      ancestor = ancestor.parent;
+    return ancestor;
   }
 
   bool _retainStatefulNodeIfPossible(Widget old) {
@@ -509,6 +468,8 @@ Set<Component> _dirtyComponents = new Set<Component>();
 bool _buildScheduled = false;
 bool _inRenderDirtyComponents = false;
 
+List<int> _debugFrameTimes = <int>[];
+
 void _buildDirtyComponents() {
   Stopwatch sw;
   if (_shouldLogRenderDuration)
@@ -535,7 +496,13 @@ void _buildDirtyComponents() {
 
   if (_shouldLogRenderDuration) {
     sw.stop();
-    print('Render took ${sw.elapsedMicroseconds} microseconds');
+    _debugFrameTimes.add(sw.elapsedMicroseconds);
+    if (_debugFrameTimes.length >= 1000) {
+      _debugFrameTimes.sort();
+      const int i = 99;
+      print('_buildDirtyComponents: ${i+1}th fastest frame out of the last ${_debugFrameTimes.length}: ${_debugFrameTimes[i]} microseconds');
+      _debugFrameTimes.clear();
+    }
   }
 }
 
@@ -957,9 +924,14 @@ class AppContainer extends AbstractWidgetRoot {
   Widget build() => new RenderViewWrapper(child: app);
 }
 
-void runApp(App app, { RenderView renderViewOverride }) {
+void runApp(App app, { RenderView renderViewOverride, bool enableProfilingLoop: false }) {
   WidgetSkyBinding.initWidgetSkyBinding(renderViewOverride: renderViewOverride);
   new AppContainer(app);
+  if (enableProfilingLoop) {
+    new Timer.periodic(const Duration(milliseconds: 20), (_) {
+      app.scheduleBuild();
+    });
+  }
 }
 
 typedef Widget Builder();

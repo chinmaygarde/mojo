@@ -251,7 +251,7 @@ class SpriteBox extends RenderBox {
     _rootNode._invalidateToBoxTransformMatrix();
   }
 
-  void paint(RenderCanvas canvas, Offset offset) {
+  void paint(PaintingCanvas canvas, Offset offset) {
     canvas.save();
 
     // Move to correct coordinate space before drawing
@@ -293,7 +293,8 @@ class SpriteBox extends RenderBox {
 
   void _callUpdate(Node node, double dt) {
     node.update(dt);
-    for (Node child in node.children) {
+    for (int i = node.children.length - 1; i >= 0; i--) {
+      Node child = node.children[i];
       if (!child.paused) {
         _callUpdate(child, dt);
       }

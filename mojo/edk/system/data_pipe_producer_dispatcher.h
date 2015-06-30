@@ -18,9 +18,12 @@ class DataPipe;
 // This is the |Dispatcher| implementation for the producer handle for data
 // pipes (created by the Mojo primitive |MojoCreateDataPipe()|). This class is
 // thread-safe.
-class MOJO_SYSTEM_IMPL_EXPORT DataPipeProducerDispatcher : public Dispatcher {
+class MOJO_SYSTEM_IMPL_EXPORT DataPipeProducerDispatcher final
+    : public Dispatcher {
  public:
-  DataPipeProducerDispatcher();
+  static scoped_refptr<DataPipeProducerDispatcher> Create() {
+    return make_scoped_refptr(new DataPipeProducerDispatcher());
+  }
 
   // Must be called before any other methods.
   void Init(scoped_refptr<DataPipe> data_pipe);
@@ -37,6 +40,7 @@ class MOJO_SYSTEM_IMPL_EXPORT DataPipeProducerDispatcher : public Dispatcher {
   DataPipe* GetDataPipeForTest() { return data_pipe_.get(); }
 
  private:
+  DataPipeProducerDispatcher();
   ~DataPipeProducerDispatcher() override;
 
   // |Dispatcher| protected methods:
