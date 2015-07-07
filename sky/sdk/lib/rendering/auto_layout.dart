@@ -17,6 +17,9 @@ class AutoLayoutParentData extends BoxParentData
   AL.Expression get width => rightEdge - leftEdge;
   AL.Expression get height => bottomEdge - topEdge;
 
+  AL.Expression get horizontalCenter => (leftEdge + rightEdge) / AL.CM(2.0);
+  AL.Expression get verticalCenter => (topEdge + bottomEdge) / AL.CM(2.0);
+
   final RenderAutoLayout _renderLayout;
   final RenderBox _renderBox;
 
@@ -66,8 +69,6 @@ class RenderAutoLayout extends RenderBox
     if (res == AL.Result.success) {
       markNeedsLayout();
     }
-
-    print("Added ${constraints.length} constraints");
 
     return res;
   }
