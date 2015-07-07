@@ -53,7 +53,7 @@ void main() {
 
     // Their widths must be equal
     (p1.width == p3.width) as AL.Constraint,
-    (p2.width / AL.CM(2.0) == p1.width) as AL.Constraint,
+    (p2.width * AL.CM(2.0) == p1.width) as AL.Constraint,
 
     // Their heights should be equal to a constant
     (p1.height == p2.height) as AL.Constraint,
@@ -61,7 +61,7 @@ void main() {
     (p3.height == AL.CM(300.0)) as AL.Constraint,
 
     // The center of the last box must be over the right edge of the second box
-    (p4.width == AL.CM(50.0)) as AL.Constraint,
+    (p4.width == p2.width / AL.CM(2.0)) as AL.Constraint,
     (p4.height == AL.CM(50.0)) as AL.Constraint,
     (p4.horizontalCenter == p2.rightEdge) as AL.Constraint,
     (p4.verticalCenter == p2.bottomEdge) as AL.Constraint,
