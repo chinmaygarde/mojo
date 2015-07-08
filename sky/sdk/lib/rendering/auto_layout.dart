@@ -4,7 +4,82 @@
 
 import 'box.dart';
 import 'object.dart';
-import 'package:cassowary/cassowary.dart' as AL;
+import 'package:cassowary/cassowary.dart' as al;
+
+/// Hosts the edge parameters and vends useful methods to construct expressions
+/// for constraints. Also sets up and manages implicit constraints and edit
+/// variables. Used as a mixin by layout containers and parent data instances
+/// of render boxes taking part in auto layout
+abstract class _AutoLayoutParamMixin {
+  // Ideally, the edges would all be final, but then they would have to be
+  // initialized before the constructor. Not sure how to do that using a Mixin
+  al.Param _leftEdge;
+  al.Param _rightEdge;
+  al.Param _topEdge;
+  al.Param _bottomEdge;
+
+  List<al.Constraint> _implicitConstraints;
+
+  al.Param get leftEdge => _leftEdge;
+  al.Param get rightEdge => _rightEdge;
+  al.Param get topEdge => _topEdge;
+  al.Param get bottomEdge => _bottomEdge;
+
+  al.Expression get width => _rightEdge - _leftEdge;
+  al.Expression get height => _bottomEdge - _topEdge;
+
+  al.Expression get horizontalCenter => (_leftEdge + _rightEdge) / al.CM(2.0);
+  al.Expression get verticalCenter => (_topEdge + _bottomEdge) / al.CM(2.0);
+
+  void _setupLayoutParameters(dynamic context) {
+    _leftEdge = new al.Param.withContext(context);
+    _rightEdge = new al.Param.withContext(context);
+    _topEdge = new al.Param.withContext(context);
+    _bottomEdge = new al.Param.withContext(context);
+  }
+
+  void _setupEditVariablesInSolver(al.Solver solver, double priority) {
+    solver.addEditVariables([
+        _leftEdge.variable,
+        _rightEdge.variable,
+        _topEdge.variable,
+        _bottomEdge.variable], priority);
+  }
+
+  void _applyEditsAtSize(al.Solver solver, Size size) {
+    solver.suggestValueForVariable(_leftEdge.variable, 0.0);
+    solver.suggestValueForVariable(_topEdge.variable, 0.0);
+    solver.suggestValueForVariable(_bottomEdge.variable, size.height);
+    solver.suggestValueForVariable(_rightEdge.variable, size.width);
+  }
+
+  void _applyAutolayoutParameterUpdates();
+  List<al.Constraint> _constructImplicitConstraints();
+
+  void _setupImplicitConstraints(al.Solver solver) {
+    List<al.Constraint> implicit = _constructImplicitConstraints();
+
+    if (implicit == null || implicit.length == 0) {
+      return;
+    }
+
+    al.Result result = solver.addConstraints(implicit);
+    assert(result == al.Result.success);
+
+    _implicitConstraints = implicit;
+  }
+
+  void _collectImplicitConstraints(al.Solver solver) {
+    if (_implicitConstraints == null || _implicitConstraints.length == 0) {
+      return;
+    }
+
+    al.Result result = solver.removeConstraints(_implicitConstraints);
+    assert(result == al.Result.success);
+
+    _implicitConstraints = null;
+  }
+}
 
 class AutoLayoutParentData extends BoxParentData
     with ContainerParentDataMixin<RenderBox>, _AutoLayoutParamMixin {
@@ -22,14 +97,14 @@ class AutoLayoutParentData extends BoxParentData
         height: _bottomEdge.value - _topEdge.value);
 
     _renderBox.layout(box, parentUsesSize: false);
-    this.position = new Point(_leftEdge.value, _topEdge.value);
+    position = new Point(_leftEdge.value, _topEdge.value);
   }
 
   @override
-  List<AL.Constraint> _constructImplicitConstraints() {
+  List<al.Constraint> _constructImplicitConstraints() {
     return [
       // The left edge must be positive
-      _leftEdge >= AL.CM(0.0),
+      _leftEdge >= al.CM(0.0),
 
       // Width must be positive
       _rightEdge >= _leftEdge,
@@ -42,51 +117,51 @@ class RenderAutoLayout extends RenderBox
          RenderBoxContainerDefaultsMixin<RenderBox, AutoLayoutParentData>,
          _AutoLayoutParamMixin {
 
-  final AL.Solver _solver = new AL.Solver();
-  List<AL.Constraint> _explicitConstraints = new List<AL.Constraint>();
+  final al.Solver _solver = new al.Solver();
+  List<al.Constraint> _explicitConstraints = new List<al.Constraint>();
 
   RenderAutoLayout({List<RenderBox> children}) {
     _setupLayoutParameters(this);
-    _setupEditVariablesInSolver(_solver, AL.Priority.required - 1);
+    _setupEditVariablesInSolver(_solver, al.Priority.required - 1);
 
     addAll(children);
   }
 
   /// Adds all the given constraints to the solver. Either all constraints are
   /// added or none
-  AL.Result addConstraints(List<AL.Constraint> constraints) {
-    AL.Result res = _solver.addConstraints(constraints);
+  al.Result addConstraints(List<al.Constraint> constraints) {
+    al.Result result = _solver.addConstraints(constraints);
 
-    if (res == AL.Result.success) {
+    if (result == al.Result.success) {
       markNeedsLayout();
       _explicitConstraints.addAll(constraints);
     }
 
-    return res;
+    return result;
   }
 
   /// Add the given constraint to the solver.
-  AL.Result addConstraint(AL.Constraint constraint) {
-    AL.Result res = _solver.addConstraint(constraint);
+  al.Result addConstraint(al.Constraint constraint) {
+    al.Result result = _solver.addConstraint(constraint);
 
-    if (res == AL.Result.success) {
+    if (result == al.Result.success) {
       markNeedsLayout();
       _explicitConstraints.add(constraint);
     }
 
-    return res;
+    return result;
   }
 
   /// Removes all explicitly added constraints.
-  AL.Result clearAllConstraints() {
-    AL.Result res = _solver.removeConstraints(_explicitConstraints);
+  al.Result clearAllConstraints() {
+    al.Result result = _solver.removeConstraints(_explicitConstraints);
 
-    if (res == AL.Result.success) {
+    if (result == al.Result.success) {
       markNeedsLayout();
-      _explicitConstraints = new List<AL.Constraint>();
+      _explicitConstraints = new List<al.Constraint>();
     }
 
-    return res;
+    return result;
   }
 
   @override
@@ -97,15 +172,10 @@ class RenderAutoLayout extends RenderBox
   }
 
   @override
-  void set size(Size value) {
-    super.size = value;
-    _applyEditsAtSize(_solver, value);
-  }
-
-  @override
   void performLayout() {
     // Step 1: Update dimensions of self
-    size = constraints.smallest;
+    size = constraints.biggest;
+    _applyEditsAtSize(_solver, size);
 
     // Step 2: Resolve solver updates and flush parameters
 
@@ -148,79 +218,8 @@ class RenderAutoLayout extends RenderBox
   }
 
   @override
-  List<AL.Constraint> _constructImplicitConstraints() {
+  List<al.Constraint> _constructImplicitConstraints() {
     // Only edits are present on layout containers
     return null;
-  }
-}
-
-abstract class _AutoLayoutParamMixin {
-  // Ideally, the edges would all be final, but then they would have to be
-  // initialized before the constructor. Not sure how to do that using a Mixin
-  AL.Param _leftEdge;
-  AL.Param _rightEdge;
-  AL.Param _topEdge;
-  AL.Param _bottomEdge;
-
-  List<AL.Constraint> _implicitConstraints;
-
-  AL.Param get leftEdge => _leftEdge;
-  AL.Param get rightEdge => _rightEdge;
-  AL.Param get topEdge => _topEdge;
-  AL.Param get bottomEdge => _bottomEdge;
-
-  AL.Expression get width => _rightEdge - _leftEdge;
-  AL.Expression get height => _bottomEdge - _topEdge;
-
-  AL.Expression get horizontalCenter => (_leftEdge + _rightEdge) / AL.CM(2.0);
-  AL.Expression get verticalCenter => (_topEdge + _bottomEdge) / AL.CM(2.0);
-
-  void _setupLayoutParameters(dynamic context) {
-    _leftEdge = new AL.Param.withContext(context);
-    _rightEdge = new AL.Param.withContext(context);
-    _topEdge = new AL.Param.withContext(context);
-    _bottomEdge = new AL.Param.withContext(context);
-  }
-
-  void _setupEditVariablesInSolver(AL.Solver solver, double priority) {
-    solver.addEditVariables([
-        _leftEdge.variable,
-        _rightEdge.variable,
-        _topEdge.variable,
-        _bottomEdge.variable], priority);
-  }
-
-  void _applyEditsAtSize(AL.Solver solver, Size size) {
-    solver.suggestValueForVariable(_leftEdge.variable, 0.0);
-    solver.suggestValueForVariable(_topEdge.variable, 0.0);
-    solver.suggestValueForVariable(_bottomEdge.variable, size.height);
-    solver.suggestValueForVariable(_rightEdge.variable, size.width);
-  }
-
-  void _applyAutolayoutParameterUpdates();
-  List<AL.Constraint> _constructImplicitConstraints();
-
-  void _setupImplicitConstraints(AL.Solver solver) {
-    List<AL.Constraint> implicit = _constructImplicitConstraints();
-
-    if (implicit == null || implicit.length == 0) {
-      return;
-    }
-
-    AL.Result res = solver.addConstraints(implicit);
-    assert(res == AL.Result.success);
-
-    _implicitConstraints = implicit;
-  }
-
-  void _collectImplicitConstraints(AL.Solver solver) {
-    if (_implicitConstraints == null || _implicitConstraints.length == 0) {
-      return;
-    }
-
-    AL.Result res = solver.removeConstraints(_implicitConstraints);
-    assert(res == AL.Result.success);
-
-    _implicitConstraints = null;
   }
 }

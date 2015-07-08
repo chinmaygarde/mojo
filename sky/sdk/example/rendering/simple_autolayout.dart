@@ -7,7 +7,7 @@ import 'package:sky/rendering/box.dart';
 import 'package:sky/rendering/object.dart';
 import 'package:sky/rendering/sky_binding.dart';
 import 'package:sky/rendering/auto_layout.dart';
-import 'package:cassowary/cassowary.dart' as AL;
+import 'package:cassowary/cassowary.dart' as al;
 
 void main() {
   var c1 = new RenderDecoratedBox(
@@ -33,32 +33,32 @@ void main() {
   AutoLayoutParentData p3 = c3.parentData;
   AutoLayoutParentData p4 = c4.parentData;
 
-  root.addConstraints(<AL.Constraint>[
+  root.addConstraints(<al.Constraint>[
     // Sum of widths of each box must be equal to that of the container
-    (p1.width + p2.width + p3.width == root.width) as AL.Constraint,
+    (p1.width + p2.width + p3.width == root.width) as al.Constraint,
 
     // The boxes must be stacked left to right
     p1.rightEdge <= p2.leftEdge,
     p2.rightEdge <= p3.leftEdge,
 
     // The widths of the first and the third boxes should be equal
-    (p1.width == p3.width) as AL.Constraint,
+    (p1.width == p3.width) as al.Constraint,
 
     // The width of the second box should be twice as much as that of the first
     // and third
-    (p2.width * AL.CM(2.0) == p1.width) as AL.Constraint,
+    (p2.width * al.CM(2.0) == p1.width) as al.Constraint,
 
     // The height of the three boxes should be equal to that of the container
-    (p1.height == p2.height) as AL.Constraint,
-    (p2.height == p3.height) as AL.Constraint,
-    (p3.height == root.height) as AL.Constraint,
+    (p1.height == p2.height) as al.Constraint,
+    (p2.height == p3.height) as al.Constraint,
+    (p3.height == root.height) as al.Constraint,
 
     // The fourth box should be half as wide as the second and must be attached
     // to the right edge of the same (by its center)
-    (p4.width == p2.width / AL.CM(2.0)) as AL.Constraint,
-    (p4.height == AL.CM(50.0)) as AL.Constraint,
-    (p4.horizontalCenter == p2.rightEdge) as AL.Constraint,
-    (p4.verticalCenter == p2.height / AL.CM(2.0)) as AL.Constraint,
+    (p4.width == p2.width / al.CM(2.0)) as al.Constraint,
+    (p4.height == al.CM(50.0)) as al.Constraint,
+    (p4.horizontalCenter == p2.rightEdge) as al.Constraint,
+    (p4.verticalCenter == p2.height / al.CM(2.0)) as al.Constraint,
   ]);
 
   new SkyBinding(root: root);
