@@ -6,10 +6,15 @@ import("//mojo/public/dart/rules.gni")
 
 group("dart-pkg") {
   deps = [
+    ":cassowary",
     ":box2d",
     ":vector_math",
     ":quiver",
   ]
+}
+
+dart_pkg("cassowary") {
+  pkg_dir = "//third_party/dart-pkg/cassowary"
 }
 
 dart_pkg("box2d") {
