@@ -9,23 +9,14 @@ import 'package:cassowary/cassowary.dart' as AL;
 class AutoLayoutParentData extends BoxParentData
     with ContainerParentDataMixin<RenderBox>, _AutoLayoutParamMixin {
 
-  final RenderAutoLayout _renderLayout;
   final RenderBox _renderBox;
 
-  AutoLayoutParentData(this._renderLayout, this._renderBox) {
-    setupLayoutParameters(this);
+  AutoLayoutParentData(this._renderBox) {
+    _setupLayoutParameters(this);
   }
 
-  /// Adds all the given constraints to the solver nearest to the render box.
-  /// Either all constraints are added or none
-  AL.Result addConstraints(List<AL.Constraint> constraints) =>
-      _renderLayout.addConstraints(constraints);
-
-  /// Add the given constraint to the solver nearest to the render box.
-  AL.Result addConstraint(AL.Constraint constraint) =>
-      _renderLayout.addConstraint(constraint);
-
-  void _applyParameterUpdates() {
+  @override
+  void _applyAutolayoutParameterUpdates() {
     BoxConstraints box = new BoxConstraints.tightFor(
         width: _rightEdge.value - _leftEdge.value,
         height: _bottomEdge.value - _topEdge.value);
@@ -43,7 +34,9 @@ class RenderAutoLayout extends RenderBox
   final AL.Solver _solver = new AL.Solver();
 
   RenderAutoLayout({List<RenderBox> children}) {
-    setupLayoutParameters(this);
+    _setupLayoutParameters(this);
+    _setupEditVariablesInSolver(_solver, AL.Priority.required - 1);
+
     addAll(children);
   }
 
@@ -73,8 +66,14 @@ class RenderAutoLayout extends RenderBox
   @override
   void setupParentData(RenderObject child) {
     if (child.parentData is! AutoLayoutParentData) {
-      child.parentData = new AutoLayoutParentData(this, child);
+      child.parentData = new AutoLayoutParentData(child);
     }
+  }
+
+  @override
+  void set size(Size value) {
+    super.size = value;
+    _applyEditsAtSize(_solver, value);
   }
 
   @override
@@ -88,14 +87,16 @@ class RenderAutoLayout extends RenderBox
     // us the updated parameters. Attached to the parameters (via the context)
     // are the AutoLayoutParentData instances. We can fetch the updated children
     // from the same
-    Set<AutoLayoutParentData> updates = _solver.flushUpdates();
-
-    for (AutoLayoutParentData childData in updates) {
-      // Assert that parameters active in other solvers are not being resolved
-      // here
-      assert(childData._renderLayout == this);
-      childData._applyParameterUpdates();
+    Set<_AutoLayoutParamMixin> updates = _solver.flushUpdates();
+    for (_AutoLayoutParamMixin update in updates) {
+      update._applyAutolayoutParameterUpdates();
     }
+  }
+
+  @override
+  void _applyAutolayoutParameterUpdates() {
+    // Nothing to do since the size update has already been presented to the
+    // solver are edit variable modification.
   }
 
   @override
@@ -115,12 +116,28 @@ abstract class _AutoLayoutParamMixin {
   AL.Param _topEdge;
   AL.Param _bottomEdge;
 
-  void setupLayoutParameters(dynamic context) {
+  void _setupLayoutParameters(dynamic context) {
     _leftEdge = new AL.Param.withContext(context);
     _rightEdge = new AL.Param.withContext(context);
     _topEdge = new AL.Param.withContext(context);
     _bottomEdge = new AL.Param.withContext(context);
   }
+
+  void _setupEditVariablesInSolver(AL.Solver solver, double priority) {
+    solver.addEditVariable(_leftEdge.variable, priority);
+    solver.addEditVariable(_rightEdge.variable, priority);
+    solver.addEditVariable(_topEdge.variable, priority);
+    solver.addEditVariable(_bottomEdge.variable, priority);
+  }
+
+  void _applyEditsAtSize(AL.Solver solver, Size size) {
+    solver.suggestValueForVariable(_leftEdge.variable, 0.0);
+    solver.suggestValueForVariable(_topEdge.variable, 0.0);
+    solver.suggestValueForVariable(_bottomEdge.variable, size.height);
+    solver.suggestValueForVariable(_rightEdge.variable, size.width);
+  }
+
+  void _applyAutolayoutParameterUpdates();
 
   AL.Param get leftEdge => _leftEdge;
   AL.Param get rightEdge => _rightEdge;

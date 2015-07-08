@@ -35,7 +35,7 @@ void main() {
 
   root.addConstraints(<AL.Constraint>[
     // Sum of widths is n units
-    (p1.width + p2.width + p3.width == AL.CM(300.0)) as AL.Constraint,
+    (p1.width + p2.width + p3.width == root.width) as AL.Constraint,
 
     // The positions and sizes must be positive
     // TODO: Make these implicit weak
@@ -58,13 +58,13 @@ void main() {
     // Their heights should be equal to a constant
     (p1.height == p2.height) as AL.Constraint,
     (p2.height == p3.height) as AL.Constraint,
-    (p3.height == AL.CM(300.0)) as AL.Constraint,
+    (p3.height == root.height) as AL.Constraint,
 
     // The center of the last box must be over the right edge of the second box
     (p4.width == p2.width / AL.CM(2.0)) as AL.Constraint,
     (p4.height == AL.CM(50.0)) as AL.Constraint,
     (p4.horizontalCenter == p2.rightEdge) as AL.Constraint,
-    (p4.verticalCenter == p2.bottomEdge) as AL.Constraint,
+    (p4.verticalCenter == p2.height / AL.CM(2.0)) as AL.Constraint,
   ]);
 
   new SkyBinding(root: root);
