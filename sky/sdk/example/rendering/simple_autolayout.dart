@@ -34,33 +34,27 @@ void main() {
   AutoLayoutParentData p4 = c4.parentData;
 
   root.addConstraints(<AL.Constraint>[
-    // Sum of widths is n units
+    // Sum of widths of each box must be equal to that of the container
     (p1.width + p2.width + p3.width == root.width) as AL.Constraint,
 
-    // The positions and sizes must be positive
-    // TODO: Make these implicit weak
-    p1.width >= AL.CM(0.0),
-    p2.width >= AL.CM(0.0),
-    p3.width >= AL.CM(0.0),
-
-    p1.leftEdge >= AL.CM(0.0),
-    p2.leftEdge >= AL.CM(0.0),
-    p3.leftEdge >= AL.CM(0.0),
-
-    // They must be stacked left to right
+    // The boxes must be stacked left to right
     p1.rightEdge <= p2.leftEdge,
     p2.rightEdge <= p3.leftEdge,
 
-    // Their widths must be equal
+    // The widths of the first and the third boxes should be equal
     (p1.width == p3.width) as AL.Constraint,
+
+    // The width of the second box should be twice as much as that of the first
+    // and third
     (p2.width * AL.CM(2.0) == p1.width) as AL.Constraint,
 
-    // Their heights should be equal to a constant
+    // The height of the three boxes should be equal to that of the container
     (p1.height == p2.height) as AL.Constraint,
     (p2.height == p3.height) as AL.Constraint,
     (p3.height == root.height) as AL.Constraint,
 
-    // The center of the last box must be over the right edge of the second box
+    // The fourth box should be half as wide as the second and must be attached
+    // to the right edge of the same (by its center)
     (p4.width == p2.width / AL.CM(2.0)) as AL.Constraint,
     (p4.height == AL.CM(50.0)) as AL.Constraint,
     (p4.horizontalCenter == p2.rightEdge) as AL.Constraint,

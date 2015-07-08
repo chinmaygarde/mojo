@@ -24,6 +24,17 @@ class AutoLayoutParentData extends BoxParentData
     _renderBox.layout(box, parentUsesSize: false);
     this.position = new Point(_leftEdge.value, _topEdge.value);
   }
+
+  @override
+  List<AL.Constraint> _constructImplicitConstraints() {
+    return [
+      // The left edge must be positive
+      _leftEdge >= AL.CM(0.0),
+
+      // Width must be positive
+      _rightEdge >= _leftEdge,
+    ];
+  }
 }
 
 class RenderAutoLayout extends RenderBox
@@ -85,10 +96,8 @@ class RenderAutoLayout extends RenderBox
 
     // We don't iterate over the children, instead, we ask the solver to tell
     // us the updated parameters. Attached to the parameters (via the context)
-    // are the AutoLayoutParentData instances. We can fetch the updated children
-    // from the same
-    Set<_AutoLayoutParamMixin> updates = _solver.flushUpdates();
-    for (_AutoLayoutParamMixin update in updates) {
+    // are the _AutoLayoutParamMixin instances.
+    for (_AutoLayoutParamMixin update in _solver.flushUpdates()) {
       update._applyAutolayoutParameterUpdates();
     }
   }
@@ -96,7 +105,8 @@ class RenderAutoLayout extends RenderBox
   @override
   void _applyAutolayoutParameterUpdates() {
     // Nothing to do since the size update has already been presented to the
-    // solver are edit variable modification.
+    // solver as an edit variable modification. The invokation of this method
+    // only indicates that the value has been flushed to the variable.
   }
 
   @override
@@ -106,6 +116,27 @@ class RenderAutoLayout extends RenderBox
   @override
   void paint(PaintingCanvas canvas, Offset offset) =>
       defaultPaint(canvas, offset);
+
+  @override
+  void adoptChild(RenderObject child) {
+    // Make sure to call super first to setup the parent data
+    super.adoptChild(child);
+    child.parentData._setupImplicitConstraints(_solver);
+  }
+
+  @override
+  void dropChild(RenderObject child) {
+    child.parentData._collectImplicitConstraints(_solver);
+
+    // Call super last as this collects parent data
+    super.dropChild(child);
+  }
+
+  @override
+  List<AL.Constraint> _constructImplicitConstraints() {
+    // Only edits are present on layout containers
+    return null;
+  }
 }
 
 abstract class _AutoLayoutParamMixin {
@@ -116,28 +147,7 @@ abstract class _AutoLayoutParamMixin {
   AL.Param _topEdge;
   AL.Param _bottomEdge;
 
-  void _setupLayoutParameters(dynamic context) {
-    _leftEdge = new AL.Param.withContext(context);
-    _rightEdge = new AL.Param.withContext(context);
-    _topEdge = new AL.Param.withContext(context);
-    _bottomEdge = new AL.Param.withContext(context);
-  }
-
-  void _setupEditVariablesInSolver(AL.Solver solver, double priority) {
-    solver.addEditVariable(_leftEdge.variable, priority);
-    solver.addEditVariable(_rightEdge.variable, priority);
-    solver.addEditVariable(_topEdge.variable, priority);
-    solver.addEditVariable(_bottomEdge.variable, priority);
-  }
-
-  void _applyEditsAtSize(AL.Solver solver, Size size) {
-    solver.suggestValueForVariable(_leftEdge.variable, 0.0);
-    solver.suggestValueForVariable(_topEdge.variable, 0.0);
-    solver.suggestValueForVariable(_bottomEdge.variable, size.height);
-    solver.suggestValueForVariable(_rightEdge.variable, size.width);
-  }
-
-  void _applyAutolayoutParameterUpdates();
+  List<AL.Constraint> _implicitConstraints;
 
   AL.Param get leftEdge => _leftEdge;
   AL.Param get rightEdge => _rightEdge;
@@ -149,4 +159,53 @@ abstract class _AutoLayoutParamMixin {
 
   AL.Expression get horizontalCenter => (_leftEdge + _rightEdge) / AL.CM(2.0);
   AL.Expression get verticalCenter => (_topEdge + _bottomEdge) / AL.CM(2.0);
+
+  void _setupLayoutParameters(dynamic context) {
+    _leftEdge = new AL.Param.withContext(context);
+    _rightEdge = new AL.Param.withContext(context);
+    _topEdge = new AL.Param.withContext(context);
+    _bottomEdge = new AL.Param.withContext(context);
+  }
+
+  void _setupEditVariablesInSolver(AL.Solver solver, double priority) {
+    solver.addEditVariables([
+        _leftEdge.variable,
+        _rightEdge.variable,
+        _topEdge.variable,
+        _bottomEdge.variable], priority);
+  }
+
+  void _applyEditsAtSize(AL.Solver solver, Size size) {
+    solver.suggestValueForVariable(_leftEdge.variable, 0.0);
+    solver.suggestValueForVariable(_topEdge.variable, 0.0);
+    solver.suggestValueForVariable(_bottomEdge.variable, size.height);
+    solver.suggestValueForVariable(_rightEdge.variable, size.width);
+  }
+
+  void _applyAutolayoutParameterUpdates();
+  List<AL.Constraint> _constructImplicitConstraints();
+
+  void _setupImplicitConstraints(AL.Solver solver) {
+    List<AL.Constraint> implicit = _constructImplicitConstraints();
+
+    if (implicit == null || implicit.length == 0) {
+      return;
+    }
+
+    AL.Result res = solver.addConstraints(implicit);
+    assert(res == AL.Result.success);
+
+    _implicitConstraints = implicit;
+  }
+
+  void _collectImplicitConstraints(AL.Solver solver) {
+    if (_implicitConstraints == null || _implicitConstraints.length == 0) {
+      return;
+    }
+
+    AL.Result res = solver.removeConstraints(_implicitConstraints);
+    assert(res == AL.Result.success);
+
+    _implicitConstraints = null;
+  }
 }
