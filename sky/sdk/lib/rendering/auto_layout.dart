@@ -43,6 +43,7 @@ class RenderAutoLayout extends RenderBox
          _AutoLayoutParamMixin {
 
   final AL.Solver _solver = new AL.Solver();
+  List<AL.Constraint> _explicitConstraints = new List<AL.Constraint>();
 
   RenderAutoLayout({List<RenderBox> children}) {
     _setupLayoutParameters(this);
@@ -58,6 +59,7 @@ class RenderAutoLayout extends RenderBox
 
     if (res == AL.Result.success) {
       markNeedsLayout();
+      _explicitConstraints.addAll(constraints);
     }
 
     return res;
@@ -69,6 +71,19 @@ class RenderAutoLayout extends RenderBox
 
     if (res == AL.Result.success) {
       markNeedsLayout();
+      _explicitConstraints.add(constraint);
+    }
+
+    return res;
+  }
+
+  /// Removes all explicitly added constraints.
+  AL.Result clearAllConstraints() {
+    AL.Result res = _solver.removeConstraints(_explicitConstraints);
+
+    if (res == AL.Result.success) {
+      markNeedsLayout();
+      _explicitConstraints = new List<AL.Constraint>();
     }
 
     return res;
