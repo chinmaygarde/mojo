@@ -34,13 +34,9 @@
 #include "sky/engine/core/css/CSSAspectRatioValue.h"
 #include "sky/engine/core/css/CSSBasicShapes.h"
 #include "sky/engine/core/css/CSSBorderImage.h"
-#include "sky/engine/core/css/CSSCrossfadeValue.h"
-#include "sky/engine/core/css/CSSFontFaceSrcValue.h"
 #include "sky/engine/core/css/CSSFontFeatureValue.h"
 #include "sky/engine/core/css/CSSFunctionValue.h"
 #include "sky/engine/core/css/CSSGradientValue.h"
-#include "sky/engine/core/css/CSSImageSetValue.h"
-#include "sky/engine/core/css/CSSImageValue.h"
 #include "sky/engine/core/css/CSSInheritedValue.h"
 #include "sky/engine/core/css/CSSInitialValue.h"
 #include "sky/engine/core/css/CSSLineBoxContainValue.h"
@@ -302,13 +298,6 @@ inline PassRefPtr<CSSPrimitiveValue> CSSPropertyParser::createPrimitiveStringVal
 {
     ASSERT(value->unit == CSSPrimitiveValue::CSS_STRING || value->unit == CSSPrimitiveValue::CSS_IDENT);
     return cssValuePool().createValue(value->string, CSSPrimitiveValue::CSS_STRING);
-}
-
-inline PassRefPtr<CSSValue> CSSPropertyParser::createCSSImageValueWithReferrer(const String& rawValue, const KURL& url)
-{
-    RefPtr<CSSValue> imageValue = CSSImageValue::create(rawValue, url);
-    toCSSImageValue(imageValue.get())->setReferrer(m_context.referrer());
-    return imageValue;
 }
 
 static inline bool isComma(CSSParserValue* value)
@@ -581,20 +570,11 @@ bool CSSPropertyParser::parseValue(CSSPropertyID propId)
         if (id == CSSValueNone) {
             parsedValue = cssValuePool().createIdentifierValue(CSSValueNone);
             m_valueList->next();
-        } else if (value->unit == CSSPrimitiveValue::CSS_URI) {
-            parsedValue = createCSSImageValueWithReferrer(value->string, completeURL(value->string));
-            m_valueList->next();
         } else if (isGeneratedImageValue(value)) {
             if (parseGeneratedImage(m_valueList, parsedValue))
                 m_valueList->next();
             else
                 return false;
-        }
-        else if (value->unit == CSSParserValue::Function && equalIgnoringCase(value->function->name, "-webkit-image-set(")) {
-            parsedValue = parseImageSet(m_valueList);
-            if (!parsedValue)
-                return false;
-            m_valueList->next();
         }
         break;
 
@@ -724,10 +704,6 @@ bool CSSPropertyParser::parseValue(CSSPropertyID propId)
         // auto | under | inherit
         ASSERT(RuntimeEnabledFeatures::css3TextDecorationsEnabled());
         return parseTextUnderlinePosition();
-
-    case CSSPropertySrc: // Only used within @font-face and @-webkit-filter, so cannot use inherit | initial. This is a list of urls or local references.
-        parsedValue = parseFontFaceSrc();
-        break;
 
     case CSSPropertyUnicodeRange:
         parsedValue = parseFontFaceUnicodeRange();
@@ -1582,19 +1558,9 @@ bool CSSPropertyParser::parseFillImage(CSSParserValueList* valueList, RefPtr<CSS
         value = cssValuePool().createIdentifierValue(CSSValueNone);
         return true;
     }
-    if (valueList->current()->unit == CSSPrimitiveValue::CSS_URI) {
-        value = createCSSImageValueWithReferrer(valueList->current()->string, completeURL(valueList->current()->string));
-        return true;
-    }
 
     if (isGeneratedImageValue(valueList->current()))
         return parseGeneratedImage(valueList, value);
-
-    if (valueList->current()->unit == CSSParserValue::Function && equalIgnoringCase(valueList->current()->function->name, "-webkit-image-set(")) {
-        value = parseImageSet(m_valueList);
-        if (value)
-            return true;
-    }
 
     return false;
 }
@@ -3228,88 +3194,6 @@ bool CSSPropertyParser::parseFontWeight()
     return false;
 }
 
-bool CSSPropertyParser::parseFontFaceSrcURI(CSSValueList* valueList)
-{
-    RefPtr<CSSFontFaceSrcValue> uriValue(CSSFontFaceSrcValue::create(completeURL(m_valueList->current()->string)));
-    uriValue->setReferrer(m_context.referrer());
-
-    CSSParserValue* value = m_valueList->next();
-    if (!value) {
-        valueList->append(uriValue.release());
-        return true;
-    }
-    if (value->unit == CSSParserValue::Operator && value->iValue == ',') {
-        m_valueList->next();
-        valueList->append(uriValue.release());
-        return true;
-    }
-
-    if (value->unit != CSSParserValue::Function || !equalIgnoringCase(value->function->name, "format("))
-        return false;
-
-    // FIXME: http://www.w3.org/TR/2011/WD-css3-fonts-20111004/ says that format() contains a comma-separated list of strings,
-    // but CSSFontFaceSrcValue stores only one format. Allowing one format for now.
-    CSSParserValueList* args = value->function->args.get();
-    if (!args || args->size() != 1 || (args->current()->unit != CSSPrimitiveValue::CSS_STRING && args->current()->unit != CSSPrimitiveValue::CSS_IDENT))
-        return false;
-    uriValue->setFormat(args->current()->string);
-    valueList->append(uriValue.release());
-    value = m_valueList->next();
-    if (value && value->unit == CSSParserValue::Operator && value->iValue == ',')
-        m_valueList->next();
-    return true;
-}
-
-bool CSSPropertyParser::parseFontFaceSrcLocal(CSSValueList* valueList)
-{
-    CSSParserValueList* args = m_valueList->current()->function->args.get();
-    if (!args || !args->size())
-        return false;
-
-    if (args->size() == 1 && args->current()->unit == CSSPrimitiveValue::CSS_STRING)
-        valueList->append(CSSFontFaceSrcValue::createLocal(args->current()->string));
-    else if (args->current()->unit == CSSPrimitiveValue::CSS_IDENT) {
-        StringBuilder builder;
-        for (CSSParserValue* localValue = args->current(); localValue; localValue = args->next()) {
-            if (localValue->unit != CSSPrimitiveValue::CSS_IDENT)
-                return false;
-            if (!builder.isEmpty())
-                builder.append(' ');
-            builder.append(localValue->string);
-        }
-        valueList->append(CSSFontFaceSrcValue::createLocal(builder.toString()));
-    } else
-        return false;
-
-    if (CSSParserValue* value = m_valueList->next()) {
-        if (value->unit == CSSParserValue::Operator && value->iValue == ',')
-            m_valueList->next();
-    }
-    return true;
-}
-
-PassRefPtr<CSSValueList> CSSPropertyParser::parseFontFaceSrc()
-{
-    RefPtr<CSSValueList> values(CSSValueList::createCommaSeparated());
-
-    while (CSSParserValue* value = m_valueList->current()) {
-        if (value->unit == CSSPrimitiveValue::CSS_URI) {
-            if (!parseFontFaceSrcURI(values.get()))
-                return nullptr;
-        } else if (value->unit == CSSParserValue::Function && equalIgnoringCase(value->function->name, "local(")) {
-            if (!parseFontFaceSrcLocal(values.get()))
-                return nullptr;
-        } else {
-            return nullptr;
-        }
-    }
-    if (!values->length())
-        return nullptr;
-
-    m_valueList->next();
-    return values.release();
-}
-
 PassRefPtr<CSSValueList> CSSPropertyParser::parseFontFaceUnicodeRange()
 {
     RefPtr<CSSValueList> values = CSSValueList::createCommaSeparated();
@@ -4241,17 +4125,9 @@ bool BorderImageParseContext::buildFromParser(CSSPropertyParser& parser, CSSProp
             context.commitForwardSlashOperator();
 
         if (!context.canAdvance() && context.allowImage()) {
-            if (val->unit == CSSPrimitiveValue::CSS_URI) {
-                context.commitImage(parser.createCSSImageValueWithReferrer(val->string, parser.m_context.completeURL(val->string)));
-            } else if (isGeneratedImageValue(val)) {
+            if (isGeneratedImageValue(val)) {
                 RefPtr<CSSValue> value = nullptr;
                 if (parser.parseGeneratedImage(parser.m_valueList, value))
-                    context.commitImage(value.release());
-                else
-                    return false;
-            } else if (val->unit == CSSParserValue::Function && equalIgnoringCase(val->function->name, "-webkit-image-set(")) {
-                RefPtr<CSSValue> value = parser.parseImageSet(parser.m_valueList);
-                if (value)
                     context.commitImage(value.release());
                 else
                     return false;
@@ -4946,110 +4822,7 @@ bool CSSPropertyParser::parseGeneratedImage(CSSParserValueList* valueList, RefPt
     if (equalIgnoringCase(val->function->name, "repeating-radial-gradient("))
         return parseRadialGradient(valueList, value, Repeating);
 
-    if (equalIgnoringCase(val->function->name, "-webkit-cross-fade("))
-        return parseCrossfade(valueList, value);
-
     return false;
-}
-
-bool CSSPropertyParser::parseCrossfade(CSSParserValueList* valueList, RefPtr<CSSValue>& crossfade)
-{
-    // Walk the arguments.
-    CSSParserValueList* args = valueList->current()->function->args.get();
-    if (!args || args->size() != 5)
-        return false;
-    RefPtr<CSSValue> fromImageValue = nullptr;
-    RefPtr<CSSValue> toImageValue = nullptr;
-
-    // The first argument is the "from" image. It is a fill image.
-    if (!args->current() || !parseFillImage(args, fromImageValue))
-        return false;
-    args->next();
-
-    if (!consumeComma(args))
-        return false;
-
-    // The second argument is the "to" image. It is a fill image.
-    if (!args->current() || !parseFillImage(args, toImageValue))
-        return false;
-    args->next();
-
-    if (!consumeComma(args))
-        return false;
-
-    // The third argument is the crossfade value. It is a percentage or a fractional number.
-    RefPtr<CSSPrimitiveValue> percentage = nullptr;
-    CSSParserValue* value = args->current();
-    if (!value)
-        return false;
-
-    if (value->unit == CSSPrimitiveValue::CSS_PERCENTAGE)
-        percentage = cssValuePool().createValue(clampTo<double>(value->fValue / 100, 0, 1), CSSPrimitiveValue::CSS_NUMBER);
-    else if (value->unit == CSSPrimitiveValue::CSS_NUMBER)
-        percentage = cssValuePool().createValue(clampTo<double>(value->fValue, 0, 1), CSSPrimitiveValue::CSS_NUMBER);
-    else
-        return false;
-
-    RefPtr<CSSCrossfadeValue> result = CSSCrossfadeValue::create(fromImageValue, toImageValue);
-    result->setPercentage(percentage);
-
-    crossfade = result;
-
-    return true;
-}
-
-PassRefPtr<CSSValue> CSSPropertyParser::parseImageSet(CSSParserValueList* valueList)
-{
-    CSSParserValue* function = valueList->current();
-
-    if (function->unit != CSSParserValue::Function)
-        return nullptr;
-
-    CSSParserValueList* functionArgs = valueList->current()->function->args.get();
-    if (!functionArgs || !functionArgs->size() || !functionArgs->current())
-        return nullptr;
-
-    RefPtr<CSSImageSetValue> imageSet = CSSImageSetValue::create();
-
-    while (functionArgs->current()) {
-        CSSParserValue* arg = functionArgs->current();
-        if (arg->unit != CSSPrimitiveValue::CSS_URI)
-            return nullptr;
-
-        RefPtr<CSSValue> image = createCSSImageValueWithReferrer(arg->string, completeURL(arg->string));
-        imageSet->append(image);
-
-        arg = functionArgs->next();
-        if (!arg || arg->unit != CSSPrimitiveValue::CSS_DIMENSION)
-            return nullptr;
-
-        double imageScaleFactor = 0;
-        const String& string = arg->string;
-        unsigned length = string.length();
-        if (!length)
-            return nullptr;
-        if (string.is8Bit()) {
-            const LChar* start = string.characters8();
-            parseDouble(start, start + length, 'x', imageScaleFactor);
-        } else {
-            const UChar* start = string.characters16();
-            parseDouble(start, start + length, 'x', imageScaleFactor);
-        }
-        if (imageScaleFactor <= 0)
-            return nullptr;
-        imageSet->append(cssValuePool().createValue(imageScaleFactor, CSSPrimitiveValue::CSS_NUMBER));
-        functionArgs->next();
-
-        // If there are no more arguments, we're done.
-        if (!functionArgs->current())
-            break;
-
-        // If there are more arguments, they should be after a comma.
-        if (!consumeComma(functionArgs))
-            return nullptr;
-    }
-
-    return imageSet.release();
 }
 
 PassRefPtr<CSSValue> CSSPropertyParser::parseWillChange()

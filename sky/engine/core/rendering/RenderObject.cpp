@@ -35,19 +35,15 @@
 #include "sky/engine/core/editing/EditingBoundary.h"
 #include "sky/engine/core/editing/FrameSelection.h"
 #include "sky/engine/core/editing/htmlediting.h"
-#include "sky/engine/core/fetch/ResourceLoader.h"
 #include "sky/engine/core/frame/FrameView.h"
 #include "sky/engine/core/frame/LocalFrame.h"
 #include "sky/engine/core/frame/Settings.h"
-#include "sky/engine/core/html/HTMLAnchorElement.h"
 #include "sky/engine/core/html/HTMLElement.h"
 #include "sky/engine/core/page/EventHandler.h"
 #include "sky/engine/core/page/Page.h"
 #include "sky/engine/core/rendering/HitTestResult.h"
 #include "sky/engine/core/rendering/RenderFlexibleBox.h"
 #include "sky/engine/core/rendering/RenderGeometryMap.h"
-#include "sky/engine/core/rendering/RenderImage.h"
-#include "sky/engine/core/rendering/RenderImageResourceStyleImage.h"
 #include "sky/engine/core/rendering/RenderInline.h"
 #include "sky/engine/core/rendering/RenderLayer.h"
 #include "sky/engine/core/rendering/RenderObjectInlines.h"
@@ -138,8 +134,7 @@ DEFINE_DEBUG_ONLY_GLOBAL(WTF::RefCountedLeakCounter, renderObjectCounter, ("Rend
 unsigned RenderObject::s_instanceCount = 0;
 
 RenderObject::RenderObject(Node* node)
-    : ImageResourceClient()
-    , m_style(nullptr)
+    : m_style(nullptr)
     , m_node(node)
     , m_parent(nullptr)
     , m_previous(nullptr)
@@ -1473,9 +1468,7 @@ bool RenderObject::isRooted() const
 
 RespectImageOrientationEnum RenderObject::shouldRespectImageOrientation() const
 {
-    // Respect the image's orientation if it's being used as a full-page image or it's
-    // an <img> and the setting to respect it everywhere is set.
-    return (document().settings() && document().settings()->shouldRespectImageOrientation() && isHTMLImageElement(node())) ? RespectImageOrientation : DoNotRespectImageOrientation;
+    return DoNotRespectImageOrientation;
 }
 
 bool RenderObject::hasEntirelyFixedBackground() const
@@ -1705,7 +1698,7 @@ void RenderObject::getTextDecorations(unsigned decorations, AppliedTextDecoratio
             }
         }
         curr = curr->parent();
-    } while (curr && decorations && (!quirksMode || !curr->node() || (!isHTMLAnchorElement(*curr->node()))));
+    } while (curr && decorations);
 
     // If we bailed out, use the element we bailed out at (typically a <font> or <a> element).
     if (decorations && curr) {
@@ -1724,13 +1717,6 @@ void RenderObject::getTextDecorations(unsigned decorations, AppliedTextDecoratio
             linethrough.style = resultStyle;
         }
     }
-}
-
-bool RenderObject::willRenderImage(ImageResource*)
-{
-    // FIXME(sky): Do we want to keep this?
-    // We will not render a new image when Active DOM is suspended
-    return !document().activeDOMObjectsAreSuspended();
 }
 
 int RenderObject::caretMinOffset() const
@@ -1769,17 +1755,6 @@ bool RenderObject::supportsTouchAction() const
     if (isInline() && !isReplaced())
         return false;
     return true;
-}
-
-void RenderObject::imageChanged(ImageResource* image, const IntRect* rect)
-{
-    imageChanged(static_cast<WrappedImagePtr>(image), rect);
-}
-
-void RenderObject::imageChanged(WrappedImagePtr, const IntRect*)
-{
-    if (parent())
-        document().scheduleVisualUpdate();
 }
 
 Element* RenderObject::offsetParent() const

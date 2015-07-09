@@ -157,7 +157,6 @@ private:
     bool parseFontSize();
     bool parseFontVariant();
     bool parseFontWeight();
-    PassRefPtr<CSSValueList> parseFontFaceSrc();
     PassRefPtr<CSSValueList> parseFontFaceUnicodeRange();
 
     // CSS3 Parsing Routines (for properties specific to CSS3)
@@ -179,10 +178,6 @@ private:
     bool parseLinearGradient(CSSParserValueList*, RefPtr<CSSValue>&, CSSGradientRepeat repeating);
     bool parseRadialGradient(CSSParserValueList*, RefPtr<CSSValue>&, CSSGradientRepeat repeating);
     bool parseGradientColorStops(CSSParserValueList*, CSSGradientValue*, bool expectComma);
-
-    bool parseCrossfade(CSSParserValueList*, RefPtr<CSSValue>&);
-
-    PassRefPtr<CSSValue> parseImageSet(CSSParserValueList*);
 
     PassRefPtr<CSSValue> parseWillChange();
 
@@ -216,14 +211,9 @@ private:
     PassRefPtr<CSSPrimitiveValue> createPrimitiveNumericValue(CSSParserValue*);
     PassRefPtr<CSSPrimitiveValue> createPrimitiveStringValue(CSSParserValue*);
 
-    PassRefPtr<CSSValue> createCSSImageValueWithReferrer(const String& rawValue, const KURL&);
-
     bool validWidthOrHeight(CSSParserValue*);
 
     PassRefPtr<CSSBasicShape> parseInsetRoundedCorners(PassRefPtr<CSSBasicShapeInset>, CSSParserValueList*);
-
-    bool parseFontFaceSrcURI(CSSValueList*);
-    bool parseFontFaceSrcLocal(CSSValueList*);
 
     class ImplicitScope {
         STACK_ALLOCATED();

@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'package:sky/editing/input.dart';
-import 'package:sky/theme/colors.dart' as colors;
 import 'package:sky/widgets/basic.dart';
 import 'package:sky/widgets/drawer.dart';
 import 'package:sky/widgets/drawer_header.dart';
@@ -16,7 +15,10 @@ import 'package:sky/widgets/modal_overlay.dart';
 import 'package:sky/widgets/navigator.dart';
 import 'package:sky/widgets/popup_menu.dart';
 import 'package:sky/widgets/radio.dart';
+import 'package:sky/widgets/snack_bar.dart';
 import 'package:sky/widgets/scaffold.dart';
+import 'package:sky/widgets/tabs.dart';
+import 'package:sky/widgets/theme.dart';
 import 'package:sky/widgets/tool_bar.dart';
 import 'package:sky/widgets/widget.dart';
 
@@ -27,9 +29,9 @@ import 'stock_types.dart';
 
 typedef void ModeUpdater(StockMode mode);
 
-class StockHome extends Component {
+class StockHome extends StatefulComponent {
 
-  StockHome(this.navigator, this.stocks, this.stockMode, this.modeUpdater) : super(stateful: true) {
+  StockHome(this.navigator, this.stocks, this.stockMode, this.modeUpdater) {
     // if (debug)
     //   new Timer(new Duration(seconds: 1), dumpState);
     _drawerController = new DrawerController(_handleDrawerStatusChanged);
@@ -49,6 +51,8 @@ class StockHome extends Component {
 
   bool _isSearching = false;
   String _searchQuery;
+
+  bool _isShowingSnackBar = false;
 
   void _handleSearchBegin() {
     setState(() {
@@ -123,6 +127,7 @@ class StockHome extends Component {
         new DrawerHeader(children: [new Text('Stocks')]),
         new MenuItem(
           icon: 'action/assessment',
+          selected: true,
           children: [new Text('Stock List')]),
         new MenuItem(
           icon: 'action/account_balance',
@@ -145,13 +150,20 @@ class StockHome extends Component {
         new MenuDivider(),
         new MenuItem(
           icon: 'action/settings',
-          onPressed: () => navigator.pushNamed('/settings'),
+          onPressed: _handleShowSettings,
           children: [new Text('Settings')]),
         new MenuItem(
           icon: 'action/help',
           children: [new Text('Help & Feedback')])
      ]
     );
+  }
+
+  void _handleShowSettings() {
+    assert(navigator.currentRoute.name == '/drawer');
+    navigator.pop();
+    assert(navigator.currentRoute.name == '/');
+    navigator.pushNamed('/settings');
   }
 
   void _handleOpenDrawer() {
@@ -178,6 +190,48 @@ class StockHome extends Component {
       );
   }
 
+  int selectedTabIndex = 0;
+  List<String> portfolioSymbols = ["AAPL","FIZZ", "FIVE", "FLAT", "ZINC", "ZNGA"];
+
+  Iterable<Stock> _filterByPortfolio(Iterable<Stock> stocks) {
+    return stocks.where((stock) => portfolioSymbols.contains(stock.symbol));
+  }
+
+  Iterable<Stock> _filterBySearchQuery(Iterable<Stock> stocks) {
+    if (_searchQuery == null)
+      return stocks;
+    RegExp regexp = new RegExp(_searchQuery, caseSensitive: false);
+    return stocks.where((stock) => stock.symbol.contains(regexp));
+  }
+
+  Widget buildMarketStockList() {
+    return new Stocklist(stocks: _filterBySearchQuery(stocks).toList());
+  }
+
+  Widget buildPortfolioStocklist() {
+    return new Stocklist(stocks: _filterBySearchQuery(_filterByPortfolio(stocks)).toList());
+  }
+
+  Widget buildTabNavigator() {
+    List<TabNavigatorView> views = <TabNavigatorView>[
+      new TabNavigatorView(
+        label: const TabLabel(text: 'MARKET'),
+        builder: buildMarketStockList
+      ),
+      new TabNavigatorView(
+        label: const TabLabel(text: 'PORTFOLIO'),
+        builder: buildPortfolioStocklist
+      )
+    ];
+    return new TabNavigator(
+      views: views,
+      selectedIndex: selectedTabIndex,
+      onChanged: (tabIndex) {
+        setState(() { selectedTabIndex = tabIndex; } );
+      }
+    );
+  }
+
   // TODO(abarth): Should we factor this into a SearchBar in the framework?
   Widget buildSearchBar() {
     return new ToolBar(
@@ -188,7 +242,35 @@ class StockHome extends Component {
         focused: true,
         placeholder: 'Search stocks',
         onChanged: _handleSearchQueryChanged),
-      backgroundColor: colors.Grey[50]
+      backgroundColor: Theme.of(this).canvasColor
+    );
+  }
+
+  void _handleUndo() {
+    setState(() {
+      _isShowingSnackBar = false;
+    });
+  }
+
+  Widget buildSnackBar() {
+    if (!_isShowingSnackBar)
+      return null;
+    return new SnackBar(
+      content: new Text("Stock purchased!"),
+      actions: [new SnackBarAction(label: "UNDO", onPressed: _handleUndo)]
+    );
+  }
+
+  void _handleStockPurchased() {
+    setState(() {
+      _isShowingSnackBar = true;
+    });
+  }
+
+  Widget buildFloatingActionButton() {
+    return new FloatingActionButton(
+      child: new Icon(type: 'content/add_white', size: 24),
+      onPressed: _handleStockPurchased
     );
   }
 
@@ -208,10 +290,9 @@ class StockHome extends Component {
     List<Widget> overlays = [
       new Scaffold(
         toolbar: _isSearching ? buildSearchBar() : buildToolBar(),
-        body: new Stocklist(stocks: stocks, query: _searchQuery),
-        floatingActionButton: new FloatingActionButton(
-          child: new Icon(type: 'content/add_white', size: 24)
-        ),
+        body: buildTabNavigator(),
+        snackBar: buildSnackBar(),
+        floatingActionButton: buildFloatingActionButton(),
         drawer: _drawerShowing ? buildDrawer() : null
       ),
     ];

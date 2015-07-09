@@ -27,10 +27,17 @@ class ParentData {
 }
 
 class PaintingCanvas extends sky.Canvas {
-  PaintingCanvas(sky.PictureRecorder recorder, Size bounds) : super(recorder, bounds);
+  PaintingCanvas(sky.PictureRecorder recorder, Rect bounds) : super(recorder, bounds);
 
+  List<RenderObject> _descendentsWithPaintingCanvases = new List<RenderObject>(); // used by RenderObject._updatePaintingCanvas() to find out which RenderObjects to ask to paint
   void paintChild(RenderObject child, Point point) {
-    child.paint(this, point.toOffset());
+    if (child.createNewDisplayList) {
+      assert(!_descendentsWithPaintingCanvases.contains(child));
+      _descendentsWithPaintingCanvases.add(child);
+      drawPaintingNode(child._paintingNode, point);
+    } else {
+      child._paintOnCanvas(this, point.toOffset());
+    }
   }
 }
 
@@ -38,6 +45,8 @@ abstract class Constraints {
   const Constraints();
   bool get isTight;
 }
+
+typedef void LayoutCallback(Constraints constraints);
 
 abstract class RenderObject extends AbstractNode implements HitTestTarget {
 
@@ -49,33 +58,29 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
   dynamic parentData; // TODO(ianh): change the type of this back to ParentData once the analyzer is cleverer
   void setupParentData(RenderObject child) {
     // override this to setup .parentData correctly for your class
-    assert(!debugDoingLayout);
-    assert(!debugDoingPaint);
+    assert(debugCanPerformMutations);
     if (child.parentData is! ParentData)
       child.parentData = new ParentData();
   }
 
   void adoptChild(RenderObject child) { // only for use by subclasses
     // call this whenever you decide a node is a child
-    assert(!debugDoingLayout);
-    assert(!debugDoingPaint);
+    assert(debugCanPerformMutations);
     assert(child != null);
     setupParentData(child);
     super.adoptChild(child);
     markNeedsLayout();
   }
   void dropChild(RenderObject child) { // only for use by subclasses
-    assert(!debugDoingLayout);
-    assert(!debugDoingPaint);
+    assert(debugCanPerformMutations);
     assert(child != null);
     assert(child.parentData != null);
-    child.parentData.detach();
     child._cleanRelayoutSubtreeRoot();
+    child.parentData.detach();
     super.dropChild(child);
     markNeedsLayout();
   }
 
-  static List<RenderObject> _nodesNeedingLayout = new List<RenderObject>();
   static bool _debugDoingLayout = false;
   static bool get debugDoingLayout => _debugDoingLayout;
   bool _debugDoingThisResize = false;
@@ -84,8 +89,24 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
   bool get debugDoingThisLayout => _debugDoingThisLayout;
   static RenderObject _debugActiveLayout = null;
   static RenderObject get debugActiveLayout => _debugActiveLayout;
+  bool _debugDoingThisLayoutWithCallback = false;
+  bool _debugMutationsLocked = false;
   bool _debugCanParentUseSize;
   bool get debugCanParentUseSize => _debugCanParentUseSize;
+  bool get debugCanPerformMutations {
+    RenderObject node = this;
+    while (true) {
+      if (node._debugDoingThisLayoutWithCallback)
+        return true;
+      if (node._debugMutationsLocked)
+        return false;
+      if (node.parent is! RenderObject)
+        return true;
+      node = node.parent;
+    }
+  }
+
+  static List<RenderObject> _nodesNeedingLayout = new List<RenderObject>();
   bool _needsLayout = true;
   bool get needsLayout => _needsLayout;
   RenderObject _relayoutSubtreeRoot;
@@ -107,8 +128,7 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
     return true;
   }
   void markNeedsLayout() {
-    assert(!debugDoingLayout);
-    assert(!debugDoingPaint);
+    assert(debugCanPerformMutations);
     if (_needsLayout) {
       assert(debugAncestorsAlreadyMarkedNeedsLayout());
       return;
@@ -139,6 +159,7 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
     assert(_relayoutSubtreeRoot == null);
     _relayoutSubtreeRoot = this;
     _nodesNeedingLayout.add(this);
+    _nodesNeedingPaint.add(this);
     scheduler.ensureVisualUpdate();
   }
   static void flushLayout() {
@@ -159,20 +180,31 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
   void layoutWithoutResize() {
     try {
       assert(_relayoutSubtreeRoot == this);
-      _debugCanParentUseSize = false;
-      _debugDoingThisLayout = true;
-      RenderObject debugPreviousActiveLayout = _debugActiveLayout;
-      _debugActiveLayout = this;
+      RenderObject debugPreviousActiveLayout;
+      assert(!_debugMutationsLocked);
+      assert(!_debugDoingThisLayoutWithCallback);
+      assert(() {
+        _debugMutationsLocked = true;
+        _debugCanParentUseSize = false;
+        _debugDoingThisLayout = true;
+        debugPreviousActiveLayout = _debugActiveLayout;
+        _debugActiveLayout = this;
+        return true;
+      });
       performLayout();
-      _debugActiveLayout = debugPreviousActiveLayout;
-      _debugDoingThisLayout = false;
-      _debugCanParentUseSize = null;
-    } catch (e, stack) {
-      print('Exception raised during layout of ${this}: ${e}');
-      print(stack);
+      assert(() {
+        _debugActiveLayout = debugPreviousActiveLayout;
+        _debugDoingThisLayout = false;
+        _debugCanParentUseSize = null;
+        _debugMutationsLocked = false;
+        return true;
+      });
+    } catch (e) {
+      print('Exception raised during layout:\n${e}\nContext:\n${this}');
       return;
     }
     _needsLayout = false;
+    markNeedsPaint();
   }
   void layout(Constraints constraints, { bool parentUsesSize: false }) {
     final parent = this.parent; // TODO(ianh): Remove this once the analyzer is cleverer
@@ -186,19 +218,33 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
       return;
     _constraints = constraints;
     _relayoutSubtreeRoot = relayoutSubtreeRoot;
-    _debugCanParentUseSize = parentUsesSize;
+    assert(!_debugMutationsLocked);
+    assert(!_debugDoingThisLayoutWithCallback);
+    assert(() {
+      _debugMutationsLocked = true;
+      _debugCanParentUseSize = parentUsesSize;
+      return true;
+    });
     if (sizedByParent) {
-      _debugDoingThisResize = true;
+      assert(() { _debugDoingThisResize = true; return true; });
       performResize();
-      _debugDoingThisResize = false;
+      assert(() { _debugDoingThisResize = false; return true; });
     }
-    _debugDoingThisLayout = true;
-    RenderObject debugPreviousActiveLayout = _debugActiveLayout;
-    _debugActiveLayout = this;
+    RenderObject debugPreviousActiveLayout;
+    assert(() {
+      _debugDoingThisLayout = true;
+      debugPreviousActiveLayout = _debugActiveLayout;
+      _debugActiveLayout = this;
+      return true;
+    });
     performLayout();
-    _debugActiveLayout = debugPreviousActiveLayout;
-    _debugDoingThisLayout = false;
-    _debugCanParentUseSize = null;
+    assert(() {
+      _debugActiveLayout = debugPreviousActiveLayout;
+      _debugDoingThisLayout = false;
+      _debugCanParentUseSize = null;
+      _debugMutationsLocked = false;
+      return true;
+    });
     assert(debugDoesMeetConstraints());
     _needsLayout = false;
     markNeedsPaint();
@@ -217,7 +263,21 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
     //
     // When calling layout() on your children, pass in
     // "parentUsesSize: true" if your size or layout is dependent on
-    // your child's size.
+    // your child's size or intrinsic dimensions.
+  void invokeLayoutCallback(LayoutCallback callback) {
+    assert(_debugMutationsLocked);
+    assert(_debugDoingThisLayout);
+    assert(!_debugDoingThisLayoutWithCallback);
+    assert(() {
+      _debugDoingThisLayoutWithCallback = true;
+      return true;
+    });
+    callback(constraints);
+    assert(() {
+      _debugDoingThisLayoutWithCallback = false;
+      return true;
+    });
+  }
 
   // when the parent has rotated (e.g. when the screen has been turned
   // 90 degrees), immediately prior to layout() being called for the
@@ -238,11 +298,88 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
 
   // PAINTING
 
-  static bool debugDoingPaint = false;
+  static List<RenderObject> _nodesNeedingPaint = new List<RenderObject>();
+  static bool _debugDoingPaint = false;
+  static bool get debugDoingPaint => _debugDoingPaint;
+  static void set debugDoingPaint(bool debug) {
+    _debugDoingPaint = debug;
+  }
+
+  final sky.PaintingNode _paintingNode = new sky.PaintingNode();
+  sky.PaintingNode get paintingNode {
+    assert(createNewDisplayList);
+    return _paintingNode;
+  }
+  bool _needsPaint = true;
+  bool get needsPaint => _needsPaint;
+  bool get createNewDisplayList => false;
+
   void markNeedsPaint() {
     assert(!debugDoingPaint);
-    scheduler.ensureVisualUpdate();
+    if (!attached) return; // Don't try painting things that aren't in the hierarchy
+    if (_needsPaint) return;
+    if (createNewDisplayList) {
+      _needsPaint = true;
+      _nodesNeedingPaint.add(this);
+      scheduler.ensureVisualUpdate();
+    } else {
+      assert(parent != null); // parent always exists on this path because the root node is a RenderView, which sets createNewDisplayList.
+      if (parent is RenderObject) {
+        (parent as RenderObject).markNeedsPaint(); // TODO(ianh): remove the cast once the analyzer is cleverer
+      }
+    }
   }
+
+  static void flushPaint() {
+    try {
+      _debugDoingPaint = true;
+      List<RenderObject> dirtyNodes = _nodesNeedingPaint;
+      _nodesNeedingPaint = new List<RenderObject>();
+      for (RenderObject node in dirtyNodes..sort((a, b) => a.depth - b.depth)) {
+        if (node._needsPaint && node.attached)
+          node._updatePaintingCanvas();
+      };
+      assert(_nodesNeedingPaint.length == 0);
+    } catch (e) {
+      print('Exception raised during flushPaint:\n${e}');
+    } finally {
+      _debugDoingPaint = false;
+    }
+  }
+
+  void _updatePaintingCanvas() {
+    assert(!_needsLayout);
+    assert(createNewDisplayList);
+    sky.PictureRecorder recorder = new sky.PictureRecorder();
+    PaintingCanvas canvas = new PaintingCanvas(recorder, paintBounds);
+    _needsPaint = false;
+    try {
+      _paintOnCanvas(canvas, Offset.zero);
+    } catch (e) {
+      print('Exception raised during _updatePaintingCanvas:\n${e}\nContext:\n${this}');
+      return;
+    }
+    assert(!_needsLayout); // check that the paint() method didn't mark us dirty again
+    assert(!_needsPaint); // check that the paint() method didn't mark us dirty again
+    _paintingNode.setBackingDrawable(recorder.endRecordingAsDrawable());
+
+    if (canvas._descendentsWithPaintingCanvases != null) {
+      for (RenderObject node in canvas._descendentsWithPaintingCanvases) {
+        assert(node.attached == attached);
+        if (node._needsPaint)
+          node._updatePaintingCanvas();
+      };
+    }
+  }
+
+  void _paintOnCanvas(PaintingCanvas canvas, Offset offset) {
+    _needsPaint = false;
+    paint(canvas, offset);
+    assert(!_needsPaint);
+  }
+
+  Rect get paintBounds;
+
   void paint(PaintingCanvas canvas, Offset offset) { }
 
 
@@ -450,7 +587,6 @@ abstract class ContainerRenderObjectMixin<ChildType extends RenderObject, Parent
     assert(child.parentData is ParentDataType);
     assert(_debugUltimatePreviousSiblingOf(child, equals: _firstChild));
     assert(_debugUltimateNextSiblingOf(child, equals: _lastChild));
-    _childCount -= 1;
     assert(_childCount >= 0);
     if (child.parentData.previousSibling == null) {
       assert(_firstChild == child);
@@ -468,10 +604,25 @@ abstract class ContainerRenderObjectMixin<ChildType extends RenderObject, Parent
     }
     child.parentData.previousSibling = null;
     child.parentData.nextSibling = null;
+    _childCount -= 1;
   }
   void remove(ChildType child) {
     _removeFromChildList(child);
     dropChild(child);
+  }
+  void removeAll() {
+    ChildType child = _firstChild;
+    while (child != null) {
+      assert(child.parentData is ParentDataType);
+      ChildType next = child.parentData.nextSibling;
+      child.parentData.previousSibling = null;
+      child.parentData.nextSibling = null;
+      dropChild(child);
+      child = next;
+    }
+    _firstChild = null;
+    _lastChild = null;
+    _childCount = 0;
   }
   void move(ChildType child, { ChildType before }) {
     assert(child != this);

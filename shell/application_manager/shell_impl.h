@@ -7,7 +7,6 @@
 
 #include "base/callback.h"
 #include "mojo/public/cpp/bindings/binding.h"
-#include "mojo/public/cpp/bindings/error_handler.h"
 #include "mojo/public/interfaces/application/application.mojom.h"
 #include "mojo/public/interfaces/application/shell.mojom.h"
 #include "shell/application_manager/identity.h"
@@ -17,7 +16,7 @@ namespace shell {
 
 class ApplicationManager;
 
-class ShellImpl : public mojo::Shell, public mojo::ErrorHandler {
+class ShellImpl : public mojo::Shell {
  public:
   ShellImpl(mojo::ApplicationPtr application,
             ApplicationManager* manager,
@@ -43,9 +42,6 @@ class ShellImpl : public mojo::Shell, public mojo::ErrorHandler {
       const mojo::String& app_url,
       mojo::InterfaceRequest<mojo::ServiceProvider> services,
       mojo::ServiceProviderPtr exposed_services) override;
-
-  // mojo::ErrorHandler implementation:
-  void OnConnectionError() override;
 
   ApplicationManager* const manager_;
   const Identity identity_;

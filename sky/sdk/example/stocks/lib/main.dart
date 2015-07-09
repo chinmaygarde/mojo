@@ -9,6 +9,7 @@ import 'package:sky/widgets/default_text_style.dart';
 import 'package:sky/widgets/navigator.dart';
 import 'package:sky/widgets/theme.dart';
 import 'package:sky/widgets/widget.dart';
+import 'package:sky/widgets/task_description.dart';
 
 import 'stock_data.dart';
 import 'stock_home.dart';
@@ -21,7 +22,7 @@ class StocksApp extends App {
   StocksApp() {
     _navigationState = new NavigationState([
       new Route(
-        name: '/', 
+        name: '/',
         builder: (navigator, route) => new StockHome(navigator, _stocks, optimismSetting, modeUpdater)
       ),
       new Route(
@@ -32,10 +33,13 @@ class StocksApp extends App {
   }
 
   void onBack() {
-    setState(() {
-      _navigationState.pop();
-    });
-    // TODO(jackson): Need a way to invoke default back behavior here
+    if (_navigationState.hasPrevious()) {
+      setState(() {
+        _navigationState.pop();
+      });
+    } else {
+      super.onBack();
+    }
   }
 
   StockMode optimismSetting = StockMode.optimistic;
@@ -68,15 +72,15 @@ class StocksApp extends App {
 
     ThemeData theme;
     if (optimismSetting == StockMode.optimistic) {
-      theme = new ThemeData.light(
-        primary: colors.Purple,
-        accent: colors.RedAccent,
-        darkToolbar: true
+      theme = new ThemeData(
+        brightness: ThemeBrightness.light,
+        primarySwatch: colors.Purple,
+        floatingActionButtonColor: colors.RedAccent[200]
       );
     } else {
-      theme = new ThemeData.dark(
-        primary: colors.Red,
-        accent: colors.PurpleAccent
+      theme = new ThemeData(
+        brightness: ThemeBrightness.dark,
+        accentColor: colors.RedAccent[200]
       );
     }
 
@@ -84,7 +88,10 @@ class StocksApp extends App {
       data: theme,
         child: new DefaultTextStyle(
           style: typography.error, // if you see this, you've forgotten to correctly configure the text style!
-          child: new Navigator(_navigationState)
+          child: new TaskDescription(
+            label: 'Stocks',
+            child: new Navigator(_navigationState)
+          )
         )
      );
    }

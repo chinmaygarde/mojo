@@ -2,50 +2,42 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:math' as math;
 import 'dart:sky' as sky;
 
 import '../animation/generators.dart';
 import '../animation/mechanics.dart';
 import '../animation/scroll_behavior.dart';
-import '../theme/colors.dart' as colors;
-import '../theme/theme_data.dart';
 import '../theme/view_configuration.dart' as config;
 import 'basic.dart';
 import 'material.dart';
-import 'theme.dart';
 
 const double _kMillisecondsPerSecond = 1000.0;
 
-double _velocityForFlingGesture(sky.GestureEvent event) {
-  return math.max(-config.kMaxFlingVelocity, math.min(config.kMaxFlingVelocity,
-      -event.velocityY)) / _kMillisecondsPerSecond;
+double _velocityForFlingGesture(double eventVelocity) {
+  return eventVelocity.clamp(-config.kMaxFlingVelocity, config.kMaxFlingVelocity) /
+    _kMillisecondsPerSecond;
 }
 
 abstract class ScrollClient {
   bool ancestorScrolled(Scrollable ancestor);
 }
 
-abstract class Scrollable extends Component {
+enum ScrollDirection { vertical, horizontal }
 
-  Scrollable({ String key, Color this.backgroundColor })
-    : super(key: key, stateful: true);
+abstract class Scrollable extends StatefulComponent {
+
+  Scrollable({
+   String key,
+   this.backgroundColor,
+   this.direction: ScrollDirection.vertical
+  }) : super(key: key);
 
   Color backgroundColor;
+  ScrollDirection direction;
 
   void syncFields(Scrollable source) {
     backgroundColor = source.backgroundColor;
-  }
-
-  Color get _nonNullBackgroundColor {
-    if (backgroundColor != null)
-      return backgroundColor;
-    switch (Theme.of(this).brightness) {
-      case ThemeBrightness.light:
-        return colors.Grey[50];
-      case ThemeBrightness.dark:
-        return colors.Grey[850];
-    }
+    direction == source.direction;
   }
 
   double _scrollOffset = 0.0;
@@ -66,9 +58,9 @@ abstract class Scrollable extends Component {
   Widget build() {
     return new Listener(
       child: new Material(
+        type: MaterialType.canvas,
         child: buildContent(),
-        edge: MaterialEdge.canvas,
-        color: _nonNullBackgroundColor
+        color: backgroundColor
       ),
       onPointerDown: _handlePointerDown,
       onPointerUp: _handlePointerUpOrCancel,
@@ -159,11 +151,14 @@ abstract class Scrollable extends Component {
   }
 
   void _handleScrollUpdate(sky.GestureEvent event) {
-    scrollBy(-event.dy);
+    scrollBy(direction == ScrollDirection.horizontal ? event.dx : -event.dy);
   }
 
   void _handleFlingStart(sky.GestureEvent event) {
-    _startSimulation(_createParticle(_velocityForFlingGesture(event)));
+    double eventVelocity = direction == ScrollDirection.horizontal
+      ? -event.velocityX
+      : -event.velocityY;
+    _startSimulation(_createParticle(_velocityForFlingGesture(eventVelocity)));
   }
 
   void _handleFlingCancel(sky.GestureEvent event) {

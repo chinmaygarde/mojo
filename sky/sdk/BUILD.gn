@@ -8,7 +8,9 @@ dart_pkg("sky") {
   sources = [
     "CHANGELOG.md",
     "bin/init.dart",
+    "lib/_sdkext",
     "lib/animation/animated_value.dart",
+    "lib/animation/animation_performance.dart",
     "lib/animation/curves.dart",
     "lib/animation/fling_curve.dart",
     "lib/animation/generators.dart",
@@ -18,6 +20,7 @@ dart_pkg("sky") {
     "lib/assets/material-design-icons.sha1",
     "lib/base/debug.dart",
     "lib/base/hit_test.dart",
+    "lib/base/lerp.dart",
     "lib/base/node.dart",
     "lib/base/scheduler.dart",
     "lib/download_material_design_icons",
@@ -25,6 +28,7 @@ dart_pkg("sky") {
     "lib/editing/editable_text.dart",
     "lib/editing/input.dart",
     "lib/editing/keyboard.dart",
+    "lib/mojo/activity.dart",
     "lib/mojo/asset_bundle.dart",
     "lib/mojo/embedder.dart",
     "lib/mojo/net/fetch.dart",
@@ -43,13 +47,13 @@ dart_pkg("sky") {
     "lib/rendering/stack.dart",
     "lib/sky_tool",
     "lib/theme/colors.dart",
-    "lib/theme/edges.dart",
     "lib/theme/shadows.dart",
     "lib/theme/theme_data.dart",
     "lib/theme/typography.dart",
     "lib/theme/view_configuration.dart",
     "lib/widgets/animated_component.dart",
     "lib/widgets/basic.dart",
+    "lib/widgets/block_viewport.dart",
     "lib/widgets/button_base.dart",
     "lib/widgets/card.dart",
     "lib/widgets/checkbox.dart",
@@ -75,8 +79,11 @@ dart_pkg("sky") {
     "lib/widgets/raised_button.dart",
     "lib/widgets/scaffold.dart",
     "lib/widgets/scrollable.dart",
+    "lib/widgets/scrollable_list.dart",
+    "lib/widgets/snack_bar.dart",
     "lib/widgets/switch.dart",
     "lib/widgets/tabs.dart",
+    "lib/widgets/task_description.dart",
     "lib/widgets/theme.dart",
     "lib/widgets/toggleable.dart",
     "lib/widgets/tool_bar.dart",
@@ -86,7 +93,8 @@ dart_pkg("sky") {
 
   # List of mojom targets that the sky pkg exports
   deps = [
-    "//sky/services/viewport",
+    "//sky/services/engine:interfaces",
+    "//sky/services/activity:interfaces",
   ]
 
   datadeps = [
@@ -94,11 +102,16 @@ dart_pkg("sky") {
     "//mojo/dart/mojom",
     "//mojo/public/dart:mojo",
     "//sky/engine/bindings",
-    "//sky/services/testing",
+    "//sky/services/testing:interfaces",
+    "//sky/services/media:interfaces",
     "//third_party/dart-pkg",
   ]
 
   sdk_ext_directory = "$root_gen_dir/sky/bindings"
+  sdk_ext_files = [
+    "//sky/engine/bindings/sky_internals.dart",
+    "//sky/engine/bindings/builtin_natives.dart",
+  ]
 }
 
 action("material_design_icons") {

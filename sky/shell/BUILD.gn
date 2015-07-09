@@ -19,8 +19,8 @@ common_deps = [
   "//sky/engine",
   "//sky/engine/tonic",
   "//sky/engine/wtf",
+  "//sky/services/engine:interfaces",
   "//sky/services/platform",
-  "//sky/services/viewport",
   "//sky/shell/dart",
   "//ui/gfx/geometry",
   "//ui/gl",
@@ -100,6 +100,8 @@ if (is_android) {
       "android/org/domokit/sky/shell/GestureProvider.java",
       "android/org/domokit/sky/shell/PlatformServiceProvider.java",
       "android/org/domokit/sky/shell/PlatformViewAndroid.java",
+      "android/org/domokit/sky/shell/ResourceCleaner.java",
+      "android/org/domokit/sky/shell/ResourceExtractor.java",
       "android/org/domokit/sky/shell/ServiceFactory.java",
       "android/org/domokit/sky/shell/ServiceRegistry.java",
       "android/org/domokit/sky/shell/SkyActivity.java",
@@ -114,10 +116,13 @@ if (is_android) {
       "//mojo/public/interfaces/application:application_java",
       "//mojo/public/java:bindings",
       "//mojo/public/java:system",
+      "//mojo/services/keyboard/public/interfaces:interfaces_java",
       "//mojo/services/network/public/interfaces:interfaces_java",
       "//services/keyboard",
+      "//sky/services/activity:activity_lib",
+      "//sky/services/activity:interfaces_java",
+      "//sky/services/engine:interfaces_java",
       "//sky/services/oknet",
-      "//sky/services/viewport:viewport_java",
     ]
   }
 
@@ -187,7 +192,7 @@ if (is_android) {
 
     deps = common_deps + [
              ":common",
-             "//sky/services/testing",
+             "//sky/services/testing:interfaces",
            ]
   }
 } else {

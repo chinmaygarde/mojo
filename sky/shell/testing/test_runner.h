@@ -11,8 +11,8 @@
 #include "base/memory/weak_ptr.h"
 #include "mojo/common/weak_binding_set.h"
 #include "mojo/public/cpp/application/interface_factory_impl.h"
+#include "sky/services/engine/sky_engine.mojom.h"
 #include "sky/services/testing/test_harness.mojom.h"
-#include "sky/services/viewport/viewport_observer.mojom.h"
 
 namespace sky {
 namespace shell {
@@ -27,7 +27,12 @@ class TestRunner : public mojo::InterfaceFactory<TestHarness>,
     package_root_ = package_root;
   }
 
-  void Start(const std::string& single_test_url);
+  struct SingleTest {
+    std::string path;
+    bool is_snapshot = false;
+  };
+
+  void Start(scoped_ptr<SingleTest> single_test);
 
  private:
   // mojo::InterfaceFactory<TestHarness> implementation:
@@ -46,9 +51,9 @@ class TestRunner : public mojo::InterfaceFactory<TestHarness>,
 
   std::string package_root_;
   scoped_ptr<ShellView> shell_view_;
-  ViewportObserverPtr viewport_observer_;
+  SkyEnginePtr sky_engine_;
 
-  std::string single_test_url_;
+  scoped_ptr<SingleTest> single_test_;
   mojo::WeakBindingSet<TestHarness> bindings_;
 
   base::WeakPtrFactory<TestRunner> weak_ptr_factory_;

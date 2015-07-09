@@ -28,15 +28,12 @@
 
 #include "gen/sky/platform/RuntimeEnabledFeatures.h"
 #include "sky/engine/core/animation/DocumentAnimations.h"
-#include "sky/engine/core/css/FontFaceSet.h"
 #include "sky/engine/core/css/resolver/StyleResolver.h"
 #include "sky/engine/core/dom/DocumentMarkerController.h"
 #include "sky/engine/core/editing/FrameSelection.h"
-#include "sky/engine/core/fetch/ResourceFetcher.h"
 #include "sky/engine/core/frame/FrameHost.h"
 #include "sky/engine/core/frame/LocalFrame.h"
 #include "sky/engine/core/frame/Settings.h"
-#include "sky/engine/core/html/parser/TextResourceDecoder.h"
 #include "sky/engine/core/loader/FrameLoaderClient.h"
 #include "sky/engine/core/page/ChromeClient.h"
 #include "sky/engine/core/page/EventHandler.h"
@@ -543,8 +540,6 @@ void FrameView::performPostLayoutTasks()
             m_firstLayoutCallbackPending = false;
     }
 
-    FontFaceSet::didLayout(*m_frame->document());
-
     sendResizeEventIfNeeded();
 }
 
@@ -670,9 +665,6 @@ void FrameView::updateLayoutAndStyleForPainting()
     RefPtr<FrameView> protector(this);
 
     updateLayoutAndStyleIfNeededRecursive();
-
-    if (RenderView* view = renderView())
-        view->updateIFramesAfterLayout();
 
     // TODO(ojan): Get rid of this and just have the LayoutClean state.
     lifecycle().advanceTo(DocumentLifecycle::StyleAndLayoutClean);

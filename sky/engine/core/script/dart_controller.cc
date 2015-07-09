@@ -8,22 +8,11 @@
 #include "base/logging.h"
 #include "base/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
-#include "dart/runtime/bin/embedded_dart_io.h"
-#include "dart/runtime/include/dart_mirrors_api.h"
-#include "gen/sky/platform/RuntimeEnabledFeatures.h"
 #include "sky/engine/bindings/builtin.h"
 #include "sky/engine/bindings/builtin_natives.h"
 #include "sky/engine/bindings/builtin_sky.h"
-#include "sky/engine/core/app/AbstractModule.h"
-#include "sky/engine/core/app/Module.h"
-#include "sky/engine/core/dom/Element.h"
-#include "sky/engine/core/frame/LocalFrame.h"
-#include "sky/engine/core/html/HTMLScriptElement.h"
-#include "sky/engine/core/html/imports/HTMLImport.h"
-#include "sky/engine/core/html/imports/HTMLImportChild.h"
-#include "sky/engine/core/loader/FrameLoaderClient.h"
 #include "sky/engine/core/script/dart_debugger.h"
-#include "sky/engine/core/script/dart_library_provider_webview.h"
+#include "sky/engine/core/script/dart_init.h"
 #include "sky/engine/core/script/dart_service_isolate.h"
 #include "sky/engine/core/script/dom_dart_state.h"
 #include "sky/engine/public/platform/Platform.h"
@@ -38,7 +27,6 @@
 #include "sky/engine/tonic/dart_snapshot_loader.h"
 #include "sky/engine/tonic/dart_state.h"
 #include "sky/engine/tonic/dart_wrappable.h"
-#include "sky/engine/wtf/text/TextPosition.h"
 
 namespace blink {
 namespace {
@@ -50,75 +38,36 @@ void CreateEmptyRootLibraryIfNeeded() {
   }
 }
 
+void CallHandleMessage(base::WeakPtr<DartState> dart_state) {
+  TRACE_EVENT0("sky", "CallHandleMessage");
+
+  if (!dart_state)
+    return;
+
+  DartIsolateScope scope(dart_state->isolate());
+  DartApiScope api_scope;
+  LogIfError(Dart_HandleMessage());
+}
+
+void MessageNotifyCallback(Dart_Isolate dest_isolate) {
+  DCHECK(Platform::current());
+  Platform::current()->mainThreadTaskRunner()->PostTask(FROM_HERE,
+      base::Bind(&CallHandleMessage, DartState::From(dest_isolate)->GetWeakPtr()));
+}
+
 } // namespace
-
-#if ENABLE(DART_STRICT)
-static const char* kCheckedModeArgs[] = {"--enable_asserts",
-                                         "--enable_type_checks",
-                                         "--error_on_bad_type",
-                                         "--error_on_bad_override",
-#if WTF_OS_IOS
-                                         "--no-profile"
-#endif
-};
-#endif
-
-extern const uint8_t* kDartVmIsolateSnapshotBuffer;
-extern const uint8_t* kDartIsolateSnapshotBuffer;
 
 DartController::DartController() : weak_factory_(this) {
 }
 
 DartController::~DartController() {
-}
-
-bool DartController::ImportChildLibraries(AbstractModule* module,
-                                          Dart_Handle library) {
-  // If the document has never seen an <import> tag, it won't have an import
-  // controller, and thus will return null for its root HTMLImport.  We could
-  // remove this null-check by always creating an ImportController.
-  HTMLImport* root = module->document()->import();
-  if (!root)
-    return true;
-
-  // TODO(abarth): Why doesn't HTMLImport do these casts for us?
-  for (HTMLImportChild* child =
-           static_cast<HTMLImportChild*>(root->firstChild());
-       child; child = static_cast<HTMLImportChild*>(child->next())) {
-    if (Element* link = child->link()) {
-      String name = link->getAttribute(HTMLNames::asAttr);
-
-      Module* child_module = child->module();
-      if (!child_module)
-        continue;
-      for (const auto& entry : child_module->libraries()) {
-        if (entry.library()->is_empty())
-          continue;
-        if (LogIfError(Dart_LibraryImportLibrary(
-                library, entry.library()->dart_value(),
-                StringToDart(dart_state(), name))))
-          return false;
-      }
-    }
+  if (dom_dart_state_) {
+    // Don't use a DartIsolateScope here since we never exit the isolate.
+    Dart_EnterIsolate(dom_dart_state_->isolate());
+    Dart_ShutdownIsolate();
+    dom_dart_state_->SetIsolate(nullptr);
+    dom_dart_state_.clear();
   }
-  return true;
-}
-
-Dart_Handle DartController::CreateLibrary(AbstractModule* module,
-                                          const String& source,
-                                          const TextPosition& textPosition) {
-  Dart_Handle library = Dart_LoadLibrary(
-      StringToDart(dart_state(), module->UrlForLibraryAt(textPosition)),
-      StringToDart(dart_state(), source), textPosition.m_line.zeroBasedInt(),
-      textPosition.m_column.zeroBasedInt());
-
-  if (LogIfError(library))
-    return nullptr;
-
-  if (!ImportChildLibraries(module, library))
-    return nullptr;
-
-  return library;
 }
 
 void DartController::DidLoadMainLibrary(String name) {
@@ -172,197 +121,6 @@ void DartController::RunFromLibrary(const String& name,
                                         weak_factory_.GetWeakPtr(), name));
 }
 
-void DartController::LoadScriptInModule(
-    AbstractModule* module,
-    const String& source,
-    const TextPosition& position,
-    const LoadFinishedCallback& finished_callback) {
-  DartState::Scope scope(dart_state());
-  CreateEmptyRootLibraryIfNeeded();
-
-  DartLibraryLoader& loader = dart_state()->library_loader();
-
-  if (!library_provider_) {
-    library_provider_ = adoptPtr(new DartLibraryProviderWebView());
-    loader.set_library_provider(library_provider_.get());
-  }
-
-  DartDependencyCatcher dependency_catcher(loader);
-  Dart_Handle library_handle = CreateLibrary(module, source, position);
-  if (!library_handle)
-    return finished_callback.Run(nullptr, nullptr);
-  RefPtr<DartValue> library = DartValue::Create(dart_state(), library_handle);
-  module->AddLibrary(library, position);
-
-  // TODO(eseidel): Better if the library/module retained its dependencies and
-  // dependency waiting could be separate from library creation.
-  dart_state()->library_loader().WaitForDependencies(
-      dependency_catcher.dependencies(),
-      base::Bind(finished_callback, module, library));
-}
-
-void DartController::ExecuteLibraryInModule(AbstractModule* module,
-                                            Dart_Handle library,
-                                            HTMLScriptElement* script) {
-  TRACE_EVENT1("sky", "DartController::ExecuteLibraryInModule",
-               "url", module->url().ascii().toStdString());
-  ASSERT(library);
-  DCHECK(Dart_CurrentIsolate() == dart_state()->isolate());
-  DartApiScope dart_api_scope;
-
-  // Don't continue if we failed to load the module.
-  if (LogIfError(Dart_FinalizeLoading(true)))
-    return;
-  const char* name = module->isApplication() ? "main" : "_init";
-
-  // main() is required, but init() is not:
-  // TODO(rmacnak): Dart_LookupFunction won't find re-exports, etc.
-  Dart_Handle entry = Dart_LookupFunction(library, ToDart(name));
-  if (module->isApplication()) {
-    DartInvokeAppField(library, ToDart(name), 0, nullptr);
-    return;
-  }
-
-  if (!Dart_IsFunction(entry))
-    return;
-
-  Dart_Handle args[] = {
-    ToDart(script),
-  };
-  DartInvokeAppField(library, ToDart(name), arraysize(args), args);
-}
-
-static void UnhandledExceptionCallback(Dart_Handle error) {
-  LOG(ERROR) << Dart_GetError(error);
-}
-
-static Dart_Handle LibraryTagHandler(Dart_LibraryTag tag,
-                                     Dart_Handle library,
-                                     Dart_Handle url) {
-  return DartLibraryLoader::HandleLibraryTag(tag, library, url);
-}
-
-static void IsolateShutdownCallback(void* callback_data) {
-  // TODO(dart)
-}
-
-static bool IsServiceIsolateURL(const char* url_name) {
-  return url_name != nullptr &&
-      String(url_name) == DART_VM_SERVICE_ISOLATE_NAME;
-}
-
-static void EnsureHandleWatcherStarted() {
-  static bool handle_watcher_started = false;
-  if (handle_watcher_started)
-    return;
-
-  // TODO(dart): Call Dart_Cleanup (ensure the handle watcher isolate is closed)
-  // during shutdown.
-  Dart_Handle mojo_core_lib =
-      Builtin::LoadAndCheckLibrary(Builtin::kMojoInternalLibrary);
-  CHECK(!LogIfError((mojo_core_lib)));
-  Dart_Handle handle_watcher_type = Dart_GetType(
-      mojo_core_lib,
-      Dart_NewStringFromCString("MojoHandleWatcher"),
-      0,
-      nullptr);
-  CHECK(!LogIfError(handle_watcher_type));
-  CHECK(!LogIfError(Dart_Invoke(
-      handle_watcher_type,
-      Dart_NewStringFromCString("_start"),
-      0,
-      nullptr)));
-
-  // RunLoop until the handle watcher isolate is spun-up.
-  CHECK(!LogIfError(Dart_RunLoop()));
-  handle_watcher_started = true;
-}
-
-// TODO(rafaelw): Right now this only supports the creation of the handle
-// watcher isolate and the service isolate. Presumably, we'll want application
-// isolates to spawn their own isolates.
-static Dart_Isolate IsolateCreateCallback(const char* script_uri,
-                                          const char* main,
-                                          const char* package_root,
-                                          Dart_IsolateFlags* flags,
-                                          void* callback_data,
-                                          char** error) {
-  if (IsServiceIsolateURL(script_uri)) {
-    CHECK(kDartIsolateSnapshotBuffer);
-    DartState* dart_state = new DartState();
-    Dart_Isolate isolate =
-        Dart_CreateIsolate(script_uri, "main", kDartIsolateSnapshotBuffer,
-                           nullptr, nullptr, error);
-    CHECK(isolate) << error;
-    dart_state->SetIsolate(isolate);
-    CHECK(Dart_IsServiceIsolate(isolate));
-    CHECK(!LogIfError(Dart_SetLibraryTagHandler(LibraryTagHandler)));
-    {
-      DartApiScope apiScope;
-      Builtin::SetNativeResolver(Builtin::kBuiltinLibrary);
-      Builtin::SetNativeResolver(Builtin::kMojoInternalLibrary);
-      Builtin::SetNativeResolver(Builtin::kIOLibrary);
-      BuiltinNatives::Init(BuiltinNatives::DartIOIsolate);
-      // Start the handle watcher from the service isolate so it isn't available
-      // for debugging or general Observatory interaction.
-      EnsureHandleWatcherStarted();
-      if (RuntimeEnabledFeatures::observatoryEnabled()) {
-        std::string ip = "127.0.0.1";
-        const intptr_t port = 8181;
-        const bool service_isolate_booted =
-            DartServiceIsolate::Startup(ip, port, LibraryTagHandler, error);
-        CHECK(service_isolate_booted) << error;
-      }
-    }
-    Dart_ExitIsolate();
-    return isolate;
-  }
-
-  // Create & start the handle watcher isolate
-  CHECK(kDartIsolateSnapshotBuffer);
-  // TODO(abarth): Who deletes this DartState instance?
-  DartState* dart_state = new DartState();
-  Dart_Isolate isolate =
-      Dart_CreateIsolate("sky:handle_watcher", "", kDartIsolateSnapshotBuffer,
-                         nullptr, dart_state, error);
-  CHECK(isolate) << error;
-  dart_state->SetIsolate(isolate);
-
-  CHECK(!LogIfError(Dart_SetLibraryTagHandler(LibraryTagHandler)));
-
-  {
-    DartApiScope apiScope;
-    Builtin::SetNativeResolver(Builtin::kBuiltinLibrary);
-    Builtin::SetNativeResolver(Builtin::kMojoInternalLibrary);
-    Builtin::SetNativeResolver(Builtin::kIOLibrary);
-
-    if (!script_uri)
-      CreateEmptyRootLibraryIfNeeded();
-  }
-
-  Dart_ExitIsolate();
-
-  CHECK(Dart_IsolateMakeRunnable(isolate));
-  return isolate;
-}
-
-static void CallHandleMessage(base::WeakPtr<DartState> dart_state) {
-  TRACE_EVENT0("sky", "CallHandleMessage");
-
-  if (!dart_state)
-    return;
-
-  DartIsolateScope scope(dart_state->isolate());
-  DartApiScope api_scope;
-  LogIfError(Dart_HandleMessage());
-}
-
-static void MessageNotifyCallback(Dart_Isolate dest_isolate) {
-  DCHECK(Platform::current());
-  Platform::current()->mainThreadTaskRunner()->PostTask(FROM_HERE,
-      base::Bind(&CallHandleMessage, DartState::From(dest_isolate)->GetWeakPtr()));
-}
-
 void DartController::CreateIsolateFor(PassOwnPtr<DOMDartState> state) {
   CHECK(kDartIsolateSnapshotBuffer);
   char* error = nullptr;
@@ -373,8 +131,7 @@ void DartController::CreateIsolateFor(PassOwnPtr<DOMDartState> state) {
   Dart_SetMessageNotifyCallback(MessageNotifyCallback);
   CHECK(isolate) << error;
   dom_dart_state_->SetIsolate(isolate);
-  Dart_SetGcCallbacks(DartGCPrologue, DartGCEpilogue);
-  CHECK(!LogIfError(Dart_SetLibraryTagHandler(LibraryTagHandler)));
+  CHECK(!LogIfError(Dart_SetLibraryTagHandler(DartLibraryTagHandler)));
 
   {
     DartApiScope apiScope;
@@ -400,39 +157,6 @@ void DartController::InstallView(View* view) {
   DartApiScope dart_api_scope;
 
   builtin_sky_->InstallView(view);
-}
-
-void DartController::ClearForClose() {
-  // Don't use a DartIsolateScope here since we never exit the isolate.
-  Dart_EnterIsolate(dom_dart_state_->isolate());
-  Dart_ShutdownIsolate();
-  dom_dart_state_->SetIsolate(nullptr);
-  dom_dart_state_.clear();
-}
-
-void DartController::InitVM() {
-  int argc = 0;
-  const char** argv = nullptr;
-
-#if ENABLE(DART_STRICT)
-  argc = arraysize(kCheckedModeArgs);
-  argv = kCheckedModeArgs;
-#endif
-
-  dart::bin::BootstrapDartIo();
-
-  CHECK(Dart_SetVMFlags(argc, argv));
-  // This should be called before calling Dart_Initialize.
-  DartDebugger::InitDebugger();
-  CHECK(Dart_Initialize(kDartVmIsolateSnapshotBuffer,
-                        IsolateCreateCallback,
-                        nullptr,  // Isolate interrupt callback.
-                        UnhandledExceptionCallback, IsolateShutdownCallback,
-                        // File IO callbacks.
-                        nullptr, nullptr, nullptr, nullptr, nullptr));
-  // Wait for load port- ensures handle watcher and service isolates are
-  // running.
-  Dart_ServiceWaitForLoadPort();
 }
 
 } // namespace blink

@@ -32,7 +32,6 @@
 #include "sky/engine/bindings/exception_state.h"
 #include "sky/engine/core/animation/AnimationTimeline.h"
 #include "sky/engine/core/animation/css/CSSAnimations.h"
-#include "sky/engine/core/css/CSSImageValue.h"
 #include "sky/engine/core/css/CSSStyleSheet.h"
 #include "sky/engine/core/css/CSSValuePool.h"
 #include "sky/engine/core/css/PropertySetCSSStyleDeclaration.h"
@@ -68,8 +67,6 @@
 #include "sky/engine/core/frame/LocalFrame.h"
 #include "sky/engine/core/frame/Settings.h"
 #include "sky/engine/core/html/HTMLElement.h"
-#include "sky/engine/core/html/HTMLTemplateElement.h"
-#include "sky/engine/core/html/parser/HTMLDocumentParser.h"
 #include "sky/engine/core/html/parser/HTMLParserIdioms.h"
 #include "sky/engine/core/layout/LayoutCallback.h"
 #include "sky/engine/core/page/ChromeClient.h"
@@ -1303,10 +1300,6 @@ DOMTokenList& Element::classList()
 
 KURL Element::hrefURL() const
 {
-    // FIXME: These all have href() or url(), but no common super class. Why doesn't
-    // <link> implement URLUtils?
-    if (isHTMLAnchorElement(*this))
-        return getURLAttribute(HTMLNames::hrefAttr);
     return KURL();
 }
 
@@ -1436,39 +1429,9 @@ void Element::willModifyAttribute(const QualifiedName& name, const AtomicString&
         recipients->enqueueMutationRecord(MutationRecord::createAttributes(this, name, oldValue));
 }
 
-static bool needsURLResolutionForInlineStyle(const Element& element, const Document& oldDocument, const Document& newDocument)
-{
-    if (oldDocument == newDocument)
-        return false;
-    if (oldDocument.baseURL() == newDocument.baseURL())
-        return false;
-    const StylePropertySet* style = element.inlineStyle();
-    if (!style)
-        return false;
-    for (unsigned i = 0; i < style->propertyCount(); ++i) {
-        // FIXME: Should handle all URL-based properties: CSSImageSetValue, CSSCursorImageValue, etc.
-        if (style->propertyAt(i).value()->isImageValue())
-            return true;
-    }
-    return false;
-}
-
-static void reResolveURLsInInlineStyle(const Document& document, MutableStylePropertySet& style)
-{
-    for (unsigned i = 0; i < style.propertyCount(); ++i) {
-        StylePropertySet::PropertyReference property = style.propertyAt(i);
-        // FIXME: Should handle all URL-based properties: CSSImageSetValue, CSSCursorImageValue, etc.
-        if (property.value()->isImageValue())
-            toCSSImageValue(property.value())->reResolveURL(document);
-    }
-}
-
 void Element::didMoveToNewDocument(Document& oldDocument)
 {
     Node::didMoveToNewDocument(oldDocument);
-
-    if (needsURLResolutionForInlineStyle(*this, oldDocument, document()))
-        reResolveURLsInInlineStyle(document(), ensureMutableInlineStyle());
 }
 
 void Element::cloneAttributesFromElement(const Element& other)
@@ -1490,7 +1453,7 @@ void Element::cloneAttributesFromElement(const Element& other)
     if (other.m_elementData->isUnique())
         const_cast<Element&>(other).m_elementData = toUniqueElementData(other.m_elementData)->makeShareableCopy();
 
-    if (!other.m_elementData->isUnique() && !needsURLResolutionForInlineStyle(other, other.document(), document()))
+    if (!other.m_elementData->isUnique())
         m_elementData = other.m_elementData;
     else
         m_elementData = other.m_elementData->makeUniqueCopy();

@@ -10,6 +10,7 @@ void main() {
   new ImageMap([
       "res/nebula.png",
       "res/sprites.png",
+      "res/starfield.png",
     ],
     allImagesLoaded);
 }
@@ -24,15 +25,18 @@ void allImagesLoaded(ImageMap loader) {
   });
 }
 
+GameDemoApp _app;
+
 void allResourcesLoaded() {
-  runApp(new GameDemoApp());
+  _app = new GameDemoApp();
+  runApp(_app);
 }
 
 class GameDemoApp extends App {
 
   Widget build() {
     return new Stack([
-      new SpriteWidget(new GameDemoWorld(_loader, _spriteSheet)),
+      new SpriteWidget(new GameDemoWorld(_app, _loader, _spriteSheet)),
 //      new StackPositionedChild(
 //        new Flex([
 //          new FlexExpandingChild(
@@ -49,6 +53,10 @@ class GameDemoApp extends App {
 //      )
     ]);
   }
+}
+
+void resetGame() {
+  _app.scheduleBuild();
 }
 
 ImageMap _loader;

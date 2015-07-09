@@ -8,6 +8,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/supports_user_data.h"
 #include "dart/runtime/include/dart_api.h"
+#include "mojo/public/cpp/bindings/binding.h"
 #include "mojo/public/interfaces/application/shell.mojom.h"
 #include "sky/services/testing/test_harness.mojom.h"
 
@@ -27,8 +28,6 @@ class Internals : public base::SupportsUserData::Data,
       mojo::InterfaceRequest<mojo::ServiceProvider> services,
       mojo::ServiceProviderPtr exposed_services) override;
 
-  std::string RenderTreeAsText();
-  std::string ContentAsText();
   void NotifyTestComplete(const std::string& test_result);
 
   mojo::Handle TakeShellProxyHandle();

@@ -14,7 +14,6 @@
 #include "base/process/process.h"
 #include "mojo/edk/embedder/channel_info_forward.h"
 #include "mojo/edk/embedder/scoped_platform_handle.h"
-#include "mojo/public/cpp/bindings/error_handler.h"
 #include "shell/child_controller.mojom.h"
 
 namespace shell {
@@ -27,10 +26,12 @@ class Context;
 //
 // This class is not thread-safe. It should be created/used/destroyed on a
 // single thread.
-class ChildProcessHost : public mojo::ErrorHandler {
+class ChildProcessHost {
  public:
   explicit ChildProcessHost(Context* context);
-  ~ChildProcessHost() override;
+  // TODO(vtl): Virtual because |DidStart()| is, even though it shouldn't be
+  // (see |DidStart()|).
+  virtual ~ChildProcessHost();
 
   // |Start()|s the child process; calls |DidStart()| (on the thread on which
   // |Start()| was called) when the child has been started (or failed to start).
@@ -73,9 +74,7 @@ class ChildProcessHost : public mojo::ErrorHandler {
   base::Process DoLaunch(scoped_ptr<LaunchData> launch_data);
 
   void AppCompleted(int32_t result);
-
-  // |mojo::ErrorHandler| methods:
-  void OnConnectionError() override;
+  void OnConnectionError();
 
   Context* const context_;
 

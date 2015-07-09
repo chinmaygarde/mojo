@@ -12,6 +12,7 @@
 #include "mojo/public/cpp/bindings/binding.h"
 #include "mojo/public/cpp/system/core.h"
 #include "mojo/public/interfaces/application/service_provider.mojom.h"
+#include "mojo/services/asset_bundle/public/interfaces/asset_bundle.mojom.h"
 #include "mojo/services/navigation/public/interfaces/navigation.mojom.h"
 #include "skia/ext/refptr.h"
 #include "sky/engine/public/platform/ServiceProvider.h"
@@ -29,7 +30,7 @@ namespace shell {
 class Animator;
 
 class Engine : public UIDelegate,
-               public ViewportObserver,
+               public SkyEngine,
                public blink::ServiceProvider,
                public mojo::NavigatorHost,
                public blink::SkyViewClient {
@@ -55,21 +56,20 @@ class Engine : public UIDelegate,
   skia::RefPtr<SkPicture> Paint();
 
  private:
-  // UIDelegate methods:
-  void ConnectToViewportObserver(
-      mojo::InterfaceRequest<ViewportObserver> request) override;
+  // UIDelegate implementation:
+  void ConnectToEngine(mojo::InterfaceRequest<SkyEngine> request) override;
   void OnAcceleratedWidgetAvailable(gfx::AcceleratedWidget widget) override;
   void OnOutputSurfaceDestroyed() override;
 
-  // ViewportObserver:
-  void OnViewportMetricsChanged(int width, int height,
-                                float device_pixel_ratio) override;
+  // SkyEngine implementation:
+  void OnViewportMetricsChanged(ViewportMetricsPtr metrics) override;
   void OnInputEvent(InputEventPtr event) override;
 
   void RunFromNetwork(const mojo::String& url) override;
   void RunFromFile(const mojo::String& main,
                    const mojo::String& package_root) override;
   void RunFromSnapshot(const mojo::String& path) override;
+  void RunFromBundle(const mojo::String& path) override;
 
   // SkyViewClient methods:
   void ScheduleFrame() override;
@@ -84,19 +84,20 @@ class Engine : public UIDelegate,
   void DidNavigateLocally(const mojo::String& url) override;
   void RequestNavigateHistory(int32_t delta) override;
 
-  void RunFromLibrary(const mojo::String& name);
-
-  void UpdateSkyViewSize();
+  void RunFromLibrary(const std::string& name);
+  void RunFromSnapshotStream(const std::string& name,
+                             mojo::ScopedDataPipeConsumerHandle snapshot);
 
   Config config_;
   scoped_ptr<Animator> animator_;
 
+  mojo::asset_bundle::AssetBundlePtr root_bundle_;
   scoped_ptr<blink::DartLibraryProvider> dart_library_provider_;
   std::unique_ptr<blink::SkyView> sky_view_;
 
-  float device_pixel_ratio_;
   gfx::Size physical_size_;
-  mojo::Binding<ViewportObserver> viewport_observer_binding_;
+  blink::SkyDisplayMetrics display_metrics_;
+  mojo::Binding<SkyEngine> binding_;
 
   base::WeakPtrFactory<Engine> weak_factory_;
 

@@ -12,6 +12,8 @@ import android.view.WindowManager;
 
 import org.chromium.base.PathUtils;
 
+import org.domokit.activity.ActivityImpl;
+
 import java.io.File;
 
 /**
@@ -28,20 +30,25 @@ public class SkyActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        PlatformViewAndroid.EdgeDims edgeDims = new PlatformViewAndroid.EdgeDims();
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
             getWindow().setStatusBarColor(0x40000000);
+            // TODO(abarth): We should get this value from the Android framework somehow.
+            edgeDims.top = 25.0;
         }
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
         SkyMain.ensureInitialized(getApplicationContext());
-        mView = new PlatformViewAndroid(this);
+        mView = new PlatformViewAndroid(this, edgeDims);
+        ActivityImpl.setCurrentActivity(this);
         setContentView(mView);
         mTracingController = new TracingController(this);
 
-        loadSnapshotIfAvailable();
+        onSkyReady();
     }
 
     /**
@@ -65,14 +72,34 @@ public class SkyActivity extends Activity {
         super.onBackPressed();
     }
 
-    private void loadSnapshotIfAvailable() {
-        File snapshot = new File(PathUtils.getDataDirectory(this), SkyApplication.SNAPSHOT);
+    /**
+      * Override this function to customize startup behavior.
+      */
+    protected void onSkyReady() {
+        File dataDir = new File(PathUtils.getDataDirectory(this));
+        File snapshot = new File(dataDir, SkyApplication.SNAPSHOT);
         if (snapshot.exists()) {
             mView.loadSnapshot(snapshot.getPath());
+            return;
+        }
+        File appBundle = new File(dataDir, SkyApplication.APP_BUNDLE);
+        if (appBundle.exists()) {
+            mView.loadBundle(appBundle.getPath());
+            return;
         }
     }
 
     public void loadUrl(String url) {
         mView.loadUrl(url);
+    }
+
+    public boolean loadBundleByName(String name) {
+        File dataDir = new File(PathUtils.getDataDirectory(this));
+        File bundle = new File(dataDir, name);
+        if (!bundle.exists()) {
+            return false;
+        }
+        mView.loadBundle(bundle.getPath());
+        return true;
     }
 }

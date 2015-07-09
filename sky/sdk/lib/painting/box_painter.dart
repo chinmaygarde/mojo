@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:sky' as sky;
 import 'dart:sky' show Point, Offset, Size, Rect, Color, Paint, Path;
 
+import '../base/lerp.dart';
 import 'shadows.dart';
-import 'package:sky/mojo/net/image_cache.dart' as image_cache;
 
 class BorderSide {
   const BorderSide({
@@ -72,6 +73,13 @@ class BoxShadow {
   String toString() => 'BoxShadow($color, $offset, $blur)';
 }
 
+BoxShadow lerpBoxShadow(BoxShadow a, BoxShadow b, double t) {
+  return new BoxShadow(
+      color: lerpColor(a.color, b.color, t),
+      offset: lerpOffset(a.offset, b.offset, t),
+      blur: lerpNum(a.blur, b.blur, t));
+}
+
 abstract class Gradient {
   sky.Shader createShader();
 }
@@ -132,19 +140,18 @@ enum BackgroundRepeat { repeat, repeatX, repeatY, noRepeat }
 // to do animated images.
 
 class BackgroundImage {
-  final String src;
   final BackgroundFit fit;
   final BackgroundRepeat repeat;
   BackgroundImage({
-    this.src,
+    Future<sky.Image> image,
     this.fit: BackgroundFit.scaleDown,
     this.repeat: BackgroundRepeat.noRepeat
   }) {
-    image_cache.load(src, (image) {
-      if (image == null)
+    image.then((resolvedImage) {
+      if (resolvedImage == null)
         return;
-      _image = image;
-      _size = new Size(image.width.toDouble(), image.height.toDouble());
+      _image = resolvedImage;
+      _size = new Size(resolvedImage.width.toDouble(), resolvedImage.height.toDouble());
       for (Function listener in _listeners) {
         listener();
       }
@@ -166,7 +173,7 @@ class BackgroundImage {
     _listeners.remove(listener);
   }
 
-  String toString() => 'BackgroundImage($src, $fit, $repeat)';
+  String toString() => 'BackgroundImage($fit, $repeat)';
 }
 
 enum Shape { rectangle, circle }

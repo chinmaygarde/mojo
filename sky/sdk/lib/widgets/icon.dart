@@ -2,18 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../mojo/asset_bundle.dart';
 import 'basic.dart';
 
-// TODO(eseidel): This should use package:.
-const String kAssetBase = '/packages/sky/assets/material-design-icons';
+AssetBundle _initIconBundle() {
+  if (rootBundle != null)
+    return rootBundle;
+  const String _kAssetBase = '/packages/sky/assets/material-design-icons/';
+  return new NetworkAssetBundle(Uri.base.resolve(_kAssetBase));
+}
+
+final AssetBundle _iconBundle = _initIconBundle();
 
 class Icon extends Component {
-
-  Icon({
-    String key,
-    this.size,
-    this.type: ''
-  }) : super(key: key);
+  Icon({ String key, this.size, this.type: '' }) : super(key: key);
 
   final int size;
   final String type;
@@ -29,10 +31,10 @@ class Icon extends Component {
     // TODO(eseidel): This clearly isn't correct.  Not sure what would be.
     // Should we use the ios images on ios?
     String density = 'drawable-xxhdpi';
-    return new Image(
-      size: new Size(size.toDouble(), size.toDouble()),
-      src: '${kAssetBase}/${category}/${density}/ic_${subtype}_${size}dp.png'
+    return new AssetImage(
+      bundle: _iconBundle,
+      name: '${category}/${density}/ic_${subtype}_${size}dp.png',
+      size: new Size(size.toDouble(), size.toDouble())
     );
   }
-
 }

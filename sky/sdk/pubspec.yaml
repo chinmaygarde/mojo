@@ -1,10 +1,13 @@
 author: Chromium Authors <sky-dev@googlegroups.com>
 dependencies:
   mojo: '>=0.0.1 <1.0.0'
+  mojo_services: '>=0.0.4 <1.0.0'
   mojom: '>=0.0.4 <1.0.0'
   vector_math: '>=1.4.3 <2.0.0'
   cassowary: '^0.1.6'
 description: Dart files to support executing inside Sky.
 homepage: https://github.com/domokit/mojo/tree/master/sky
+environment:
+  sdk: ">=1.8.0 <2.0.0"
 name: sky
-version: 0.0.13
+version: 0.0.17

@@ -33,13 +33,11 @@
 #include "gen/sky/core/EventNames.h"
 #include "gen/sky/core/EventTargetNames.h"
 #include "gen/sky/core/EventTypeNames.h"
-#include "gen/sky/core/FetchInitiatorTypeNames.h"
 #include "gen/sky/core/HTMLNames.h"
 #include "gen/sky/core/MediaFeatureNames.h"
 #include "gen/sky/core/MediaTypeNames.h"
 #include "gen/sky/platform/FontFamilyNames.h"
 #include "sky/engine/core/dom/Document.h"
-#include "sky/engine/core/html/parser/HTMLParserThread.h"
 #include "sky/engine/platform/Partitions.h"
 #include "sky/engine/platform/PlatformThreadData.h"
 #include "sky/engine/wtf/text/StringStatics.h"
@@ -56,7 +54,6 @@ void CoreInitializer::init()
     EventNames::init();
     EventTargetNames::init();
     EventTypeNames::init();
-    FetchInitiatorTypeNames::init();
     FontFamilyNames::init();
     MediaFeatureNames::init();
     MediaTypeNames::init();
@@ -73,13 +70,10 @@ void CoreInitializer::init()
     PlatformThreadData::current();
 
     StringImpl::freezeStaticStrings();
-
-    HTMLParserThread::start();
 }
 
 void CoreInitializer::shutdown()
 {
-    HTMLParserThread::stop();
     Partitions::shutdown();
 }
 

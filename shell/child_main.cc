@@ -26,6 +26,7 @@
 #include "mojo/edk/embedder/scoped_platform_handle.h"
 #include "mojo/edk/embedder/simple_platform_support.h"
 #include "mojo/edk/embedder/slave_process_delegate.h"
+#include "mojo/public/cpp/bindings/binding.h"
 #include "mojo/public/cpp/system/core.h"
 #include "shell/child_controller.mojom.h"
 #include "shell/child_switches.h"
@@ -174,7 +175,7 @@ class AppContext : public mojo::embedder::SlaveProcessDelegate {
 
 // ChildControllerImpl ---------------------------------------------------------
 
-class ChildControllerImpl : public ChildController, public mojo::ErrorHandler {
+class ChildControllerImpl : public ChildController {
  public:
   ~ChildControllerImpl() override {
     DCHECK(thread_checker_.CalledOnValidThread());
@@ -209,14 +210,6 @@ class ChildControllerImpl : public ChildController, public mojo::ErrorHandler {
     binding_.Bind(handle.Pass());
   }
 
-  // |mojo::ErrorHandler| methods:
-  void OnConnectionError() override {
-    // A connection error means the connection to the shell is lost. This is not
-    // recoverable.
-    LOG(ERROR) << "Connection error to the shell";
-    _exit(1);
-  }
-
   // |ChildController| methods:
   void StartApp(const mojo::String& app_path,
                 mojo::InterfaceRequest<mojo::Application> application_request,
@@ -242,7 +235,14 @@ class ChildControllerImpl : public ChildController, public mojo::ErrorHandler {
         unblocker_(unblocker),
         channel_info_(nullptr),
         binding_(this) {
-    binding_.set_error_handler(this);
+    binding_.set_connection_error_handler([this]() { OnConnectionError(); });
+  }
+
+  void OnConnectionError() {
+    // A connection error means the connection to the shell is lost. This is not
+    // recoverable.
+    LOG(ERROR) << "Connection error to the shell";
+    _exit(1);
   }
 
   // Callback for |mojo::embedder::ConnectToMaster()|.

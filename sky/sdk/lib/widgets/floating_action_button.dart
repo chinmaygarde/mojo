@@ -17,7 +17,7 @@ class FloatingActionButton extends ButtonBase {
   FloatingActionButton({
     String key,
     this.child,
-    Function onPressed
+    this.onPressed
   }) : super(key: key);
 
   Widget child;
@@ -31,8 +31,8 @@ class FloatingActionButton extends ButtonBase {
 
   Widget buildContent() {
     return new Material(
-      color: Theme.of(this).accent[200],
-      edge: MaterialEdge.circle,
+      color: Theme.of(this).floatingActionButtonColor,
+      type: MaterialType.circle,
       level: highlight ? 3 : 2,
       child: new ClipOval(
         child: new Listener(

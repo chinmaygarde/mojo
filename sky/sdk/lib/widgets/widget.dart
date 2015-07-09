@@ -4,9 +4,11 @@
 
 import 'dart:async';
 import 'dart:collection';
-import 'dart:mirrors';
 import 'dart:sky' as sky;
 
+import 'package:sky/mojo/activity.dart' as activity;
+
+import '../base/debug.dart';
 import '../base/hit_test.dart';
 import '../rendering/box.dart';
 import '../rendering/object.dart';
@@ -18,10 +20,10 @@ export '../rendering/object.dart' show Point, Offset, Size, Rect, Color, Paint, 
 
 final bool _shouldLogRenderDuration = false;
 
+typedef Widget Builder();
 typedef void WidgetTreeWalker(Widget);
 
-// All Effen nodes derive from Widget. All nodes have a _parent, a _key and
-// can be sync'd.
+/// A base class for elements of the widget tree
 abstract class Widget {
 
   Widget({ String key }) : _key = key {
@@ -34,12 +36,23 @@ abstract class Widget {
   }
 
   // you should not build the UI tree ahead of time, build it only during build()
-  bool _isConstructedDuringBuild() => this is AbstractWidgetRoot || this is App || _inRenderDirtyComponents;
+  bool _isConstructedDuringBuild() => this is AbstractWidgetRoot || this is App || _inRenderDirtyComponents || _inLayoutCallbackBuilder > 0;
 
   String _key;
+
+  /// A semantic identifer for this widget
+  ///
+  /// Keys are used to find matches when synchronizing two widget trees, for
+  /// example after a [Component] rebuilds. Without keys, two widgets can match
+  /// if their runtimeType matches. With keys, the keys must match as well.
+  /// Assigning a key to a widget can improve performance by causing the
+  /// framework to sync widgets that share a lot of common structure and can
+  /// help match stateful components semantically rather than positionally.
   String get key => _key;
 
   Widget _parent;
+
+  /// The parent of this widget in the widget tree.
   Widget get parent => _parent;
 
   bool _mounted = false;
@@ -48,6 +61,7 @@ abstract class Widget {
   static bool _notifyingMountStatus = false;
   static List<Widget> _mountedChanged = new List<Widget>();
 
+  /// Called during the synchronizing process to update the widget's parent.
   void setParent(Widget newParent) {
     assert(!_notifyingMountStatus);
     if (_parent == newParent)
@@ -67,7 +81,13 @@ abstract class Widget {
     }
   }
 
-  // Override this if you have children and call walker on each child
+  /// Walks the immediate children of this widget
+  ///
+  /// Override this if you have children and call walker on each child.
+  /// Note that you may be called before the child has had its parent
+  /// pointer set to point to you. Your walker, and any methods it
+  /// invokes on your descendants, should not rely on the ancestor
+  /// chain being correctly configured at this point.
   void walkChildren(WidgetTreeWalker walker) { }
 
   static void _notifyMountStatusChanged() {
@@ -89,25 +109,33 @@ abstract class Widget {
       sky.tracing.end("Widget._notifyMountStatusChanged");
     }
   }
+
+  /// Override this function to learn when this [Widget] enters the widget tree.
   void didMount() { }
+
+  /// Override this function to learn when this [Widget] leaves the widget tree.
   void didUnmount() { }
 
   RenderObject _root;
+
+  /// The underlying [RenderObject] associated with this [Widget].
   RenderObject get root => _root;
 
   // Subclasses which implements Nodes that become stateful may return true
-  // if the |old| node has become stateful and should be retained.
+  // if the node has become stateful and should be retained.
   // This is called immediately before _sync().
-  // Component._retainStatefulNodeIfPossible() calls syncFields().
-  bool _retainStatefulNodeIfPossible(Widget old) => false;
+  // Component.retainStatefulNodeIfPossible() calls syncFields().
+  bool retainStatefulNodeIfPossible(Widget newNode) => false;
 
   void _sync(Widget old, dynamic slot);
-  // 'slot' is the identifier that the parent RenderObjectWrapper uses to know
-  // where to put this descendant
+  void updateSlot(dynamic newSlot);
+  // 'slot' is the identifier that the ancestor RenderObjectWrapper uses to know
+  // where to put this descendant. If you just defer to a child, then make sure
+  // to pass them the slot.
 
-  Widget findAncestor(Type targetType) {
+  Widget findAncestorRenderObjectWrapper() {
     var ancestor = _parent;
-    while (ancestor != null && !reflectClass(ancestor.runtimeType).isSubtypeOf(reflectClass(targetType)))
+    while (ancestor != null && ancestor is! RenderObjectWrapper)
       ancestor = ancestor._parent;
     return ancestor;
   }
@@ -118,23 +146,31 @@ abstract class Widget {
   }
 
   void removeChild(Widget node) {
+    // Call this when we no longer have a child equivalent to node.
+    // For example, when our child has changed type, or has been set to null.
+    // Do not call this when our child has been replaced by an equivalent but
+    // newer instance that will sync() with the old one, since in that case
+    // the subtree starting from the old node, as well as the render tree that
+    // belonged to the old node, continue to live on in the replacement node.
     node.remove();
+    assert(node.parent == null);
   }
 
   void detachRoot();
 
   // Returns the child which should be retained as the child of this node.
-  Widget syncChild(Widget node, Widget oldNode, dynamic slot) {
+  Widget syncChild(Widget newNode, Widget oldNode, dynamic slot) {
 
-    assert(oldNode is! Component || (oldNode is Component && !oldNode._disqualifiedFromEverAppearingAgain)); // TODO(ianh): Simplify this once the analyzer is cleverer
-
-    if (node == oldNode) {
-      assert(node == null || node.mounted);
-      assert(node is! RenderObjectWrapper || (node is RenderObjectWrapper && node._ancestor != null)); // TODO(ianh): Simplify this once the analyzer is cleverer
-      return node; // Nothing to do. Subtrees must be identical.
+    if (newNode == oldNode) {
+      assert(newNode == null || newNode.mounted);
+      assert(newNode is! RenderObjectWrapper ||
+             (newNode is RenderObjectWrapper && newNode._ancestor != null)); // TODO(ianh): Simplify this once the analyzer is cleverer
+      if (newNode != null)
+        newNode.setParent(this);
+      return newNode; // Nothing to do. Subtrees must be identical.
     }
 
-    if (node == null) {
+    if (newNode == null) {
       // the child in this slot has gone away
       assert(oldNode.mounted);
       oldNode.detachRoot();
@@ -144,14 +180,16 @@ abstract class Widget {
     }
 
     if (oldNode != null) {
-      if (oldNode.runtimeType == node.runtimeType && oldNode.key == node.key) {
-        if (node._retainStatefulNodeIfPossible(oldNode)) {
+      if (oldNode.runtimeType == newNode.runtimeType && oldNode.key == newNode.key) {
+        if (oldNode.retainStatefulNodeIfPossible(newNode)) {
           assert(oldNode.mounted);
-          assert(!node.mounted);
+          assert(!newNode.mounted);
           oldNode.setParent(this);
-          oldNode._sync(node, slot);
+          oldNode._sync(newNode, slot);
           assert(oldNode.root is RenderObject);
           return oldNode;
+        } else {
+          oldNode.setParent(null);
         }
       } else {
         assert(oldNode.mounted);
@@ -161,17 +199,34 @@ abstract class Widget {
       }
     }
 
-    assert(!node.mounted);
-    node.setParent(this);
-    node._sync(oldNode, slot);
-    assert(node.root is RenderObject);
-    return node;
+    assert(oldNode == null || (oldNode.mounted == false && oldNode.parent == null));
+    assert(!newNode.mounted);
+    newNode.setParent(this);
+    newNode._sync(oldNode, slot);
+    assert(newNode.root is RenderObject);
+    return newNode;
   }
 
-  String toString() {
+  String toString([String prefix = '', String startPrefix = '']) {
+    String childrenString = '';
+    List<Widget> children = new List<Widget>();
+    walkChildren(children.add);
+    if (children.length > 0) {
+      Widget lastChild = children.removeLast();
+      String nextStartPrefix = prefix + ' +-';
+      String nextPrefix = prefix + ' | ';
+      for (Widget child in children)
+        childrenString += child.toString(nextPrefix, nextStartPrefix);
+      String lastStartPrefix = prefix + ' \'-';
+      String lastPrefix = prefix + '   ';
+      childrenString += lastChild.toString(lastPrefix, lastStartPrefix);
+    }
+    return '$startPrefix${toStringName()}\n$childrenString';
+  }
+  String toStringName() {
     if (key == null)
-      return '$runtimeType(unkeyed)';
-    return '$runtimeType("$key")';
+      return '$runtimeType(unkeyed; hashCode=$hashCode)';
+    return '$runtimeType("$key"; hashCode=$hashCode)';
   }
 
 }
@@ -192,15 +247,21 @@ abstract class TagNode extends Widget {
   Widget child;
 
   void walkChildren(WidgetTreeWalker walker) {
-    walker(child);
+    if (child != null)
+      walker(child);
   }
 
   void _sync(Widget old, dynamic slot) {
     Widget oldChild = old == null ? null : (old as TagNode).child;
     child = syncChild(child, oldChild, slot);
+    assert(child.parent == this);
     assert(child.root != null);
     _root = child.root;
     assert(_root == root); // in case a subclass reintroduces it
+  }
+
+  void updateSlot(dynamic newSlot) {
+    child.updateSlot(newSlot);
   }
 
   void remove() {
@@ -223,7 +284,27 @@ class ParentDataNode extends TagNode {
 }
 
 abstract class Inherited extends TagNode {
+
   Inherited({ String key, Widget child }) : super._withKey(child, key);
+
+  void _sync(Widget old, dynamic slot) {
+    if (old != null && syncShouldNotify(old)) {
+      final Type ourRuntimeType = runtimeType;
+      void notifyChildren(Widget child) {
+        if (child is Component &&
+            child._dependencies != null &&
+            child._dependencies.contains(ourRuntimeType))
+          child._dependenciesChanged();
+        if (child.runtimeType != ourRuntimeType)
+          child.walkChildren(notifyChildren);
+      }
+      walkChildren(notifyChildren);
+    }
+    super._sync(old, slot);
+  }
+
+  bool syncShouldNotify(Inherited old);
+
 }
 
 typedef void GestureEventListener(sky.GestureEvent e);
@@ -320,24 +401,27 @@ class Listener extends TagNode  {
 
 abstract class Component extends Widget {
 
-  Component({ String key, bool stateful })
-      : _stateful = stateful != null ? stateful : false,
-        _order = _currentOrder + 1,
+  Component({ String key })
+      : _order = _currentOrder + 1,
         super._withKey(key);
 
   static Component _currentlyBuilding;
   bool get _isBuilding => _currentlyBuilding == this;
 
-  bool _stateful;
   bool _dirty = true;
-  bool _disqualifiedFromEverAppearingAgain = false;
 
   Widget _built;
   dynamic _slot; // cached slot from the last time we were synced
 
-  void didMount() {
-    assert(!_disqualifiedFromEverAppearingAgain);
-    super.didMount();
+  void updateSlot(dynamic newSlot) {
+    _slot = newSlot;
+    if (_built != null)
+      _built.updateSlot(newSlot);
+  }
+
+  void walkChildren(WidgetTreeWalker walker) {
+    if (_built != null)
+      walker(_built);
   }
 
   void remove() {
@@ -354,46 +438,26 @@ abstract class Component extends Widget {
     _built.detachRoot();
   }
 
+  Set<Type> _dependencies;
   Inherited inheritedOfType(Type targetType) {
+    if (_dependencies == null)
+      _dependencies = new Set<Type>();
+    _dependencies.add(targetType);
     Widget ancestor = parent;
     while (ancestor != null && ancestor.runtimeType != targetType)
       ancestor = ancestor.parent;
     return ancestor;
   }
-
-  bool _retainStatefulNodeIfPossible(Widget old) {
-    assert(!_disqualifiedFromEverAppearingAgain);
-
-    Component oldComponent = old as Component;
-    if (oldComponent == null || !oldComponent._stateful)
-      return false;
-
-    assert(runtimeType == oldComponent.runtimeType);
-    assert(key == oldComponent.key);
-
-    // Make |this|, the newly-created object, into the "old" Component, and kill it
-    _stateful = false;
-    _built = oldComponent._built;
-    assert(_built != null);
-    _disqualifiedFromEverAppearingAgain = true;
-
-    // Make |oldComponent| the "new" component
-    oldComponent._built = null;
-    oldComponent._dirty = true;
-    oldComponent.syncFields(this);
-    return true;
+  void _dependenciesChanged() {
+    // called by Inherited.sync()
+    scheduleBuild();
   }
 
-  // This is called by _retainStatefulNodeIfPossible(), during
-  // syncChild(), just before _sync() is called.
-  // This must be implemented on any subclass that can become stateful
-  // (but don't call super.syncFields() if you inherit directly from
-  // Component, since that'll fire an assert).
-  // If you don't ever become stateful, then don't override this.
-  void syncFields(Component source) {
-    assert(false);
-  }
-
+  // order corresponds to _build_ order, not depth in the tree.
+  // All the Components built by a particular other Component will have the
+  // same order, regardless of whether one is subsequently inserted
+  // into another. The order is used to not tell a Component to
+  // rebuild if the Component that it built has itself been rebuilt.
   final int _order;
   static int _currentOrder = 0;
 
@@ -404,20 +468,17 @@ abstract class Component extends Widget {
   //      assert(_built != null && old == null)
   // 3) Syncing against an old version
   //      assert(_built == null && old != null)
-  void _sync(Widget old, dynamic slot) {
+  void _sync(Component old, dynamic slot) {
     assert(_built == null || old == null);
-    assert(!_disqualifiedFromEverAppearingAgain);
 
-    Component oldComponent = old as Component;
-
-    _slot = slot;
+    updateSlot(slot);
 
     var oldBuilt;
-    if (oldComponent == null) {
+    if (old == null) {
       oldBuilt = _built;
     } else {
       assert(_built == null);
-      oldBuilt = oldComponent._built;
+      oldBuilt = old._built;
     }
 
     int lastOrder = _currentOrder;
@@ -430,6 +491,7 @@ abstract class Component extends Widget {
 
     _built = syncChild(_built, oldBuilt, slot);
     assert(_built != null);
+    assert(_built.parent == this);
     _dirty = false;
     _root = _built.root;
     assert(_root == root); // in case a subclass reintroduces it
@@ -437,25 +499,15 @@ abstract class Component extends Widget {
   }
 
   void _buildIfDirty() {
-    assert(!_disqualifiedFromEverAppearingAgain);
     if (!_dirty || !_mounted)
       return;
-
     assert(root != null);
     _sync(null, _slot);
   }
 
   void scheduleBuild() {
-    setState(() {});
-  }
-
-  void setState(Function fn()) {
-    assert(!_disqualifiedFromEverAppearingAgain);
-    assert(_stateful);
-    fn();
     if (_isBuilding || _dirty || !_mounted)
       return;
-
     _dirty = true;
     _scheduleComponentForRender(this);
   }
@@ -464,30 +516,117 @@ abstract class Component extends Widget {
 
 }
 
+abstract class StatefulComponent extends Component {
+
+  StatefulComponent({ String key }) : super(key: key);
+
+  bool _disqualifiedFromEverAppearingAgain = false;
+
+  void didMount() {
+    assert(!_disqualifiedFromEverAppearingAgain);
+    super.didMount();
+  }
+
+  void _buildIfDirty() {
+    assert(!_disqualifiedFromEverAppearingAgain);
+    super._buildIfDirty();
+  }
+
+  void _sync(Widget old, dynamic slot) {
+    assert(!_disqualifiedFromEverAppearingAgain);
+    super._sync(old, slot);
+  }
+
+  Widget syncChild(Widget node, Widget oldNode, dynamic slot) {
+    assert(!_disqualifiedFromEverAppearingAgain);
+    return super.syncChild(node, oldNode, slot);
+  }
+
+  bool retainStatefulNodeIfPossible(StatefulComponent newNode) {
+    assert(!_disqualifiedFromEverAppearingAgain);
+    assert(newNode != null);
+    assert(runtimeType == newNode.runtimeType);
+    assert(key == newNode.key);
+    assert(_built != null);
+    newNode._disqualifiedFromEverAppearingAgain = true;
+
+    newNode._built = _built;
+    _built = null;
+
+    syncFields(newNode);
+    _dirty = true;
+
+    return true;
+  }
+
+  // This is called by retainStatefulNodeIfPossible(), during
+  // syncChild(), just before _sync() is called. Derived
+  // classes should override this method to update `this` to
+  // account for the new values the parent passed to `source`.
+  // Make sure to call super.syncFields(source) unless you are
+  // extending StatefulComponent directly.
+  void syncFields(Component source);
+
+  void setState(Function fn()) {
+    assert(!_disqualifiedFromEverAppearingAgain);
+    fn();
+    scheduleBuild();
+  }
+}
+
 Set<Component> _dirtyComponents = new Set<Component>();
 bool _buildScheduled = false;
 bool _inRenderDirtyComponents = false;
+int _inLayoutCallbackBuilder = 0;
+
+class LayoutCallbackBuilderHandle { bool _active = true; }
+LayoutCallbackBuilderHandle enterLayoutCallbackBuilder() {
+  if (!inDebugBuild)
+    return null;
+  _inLayoutCallbackBuilder += 1;
+  return new LayoutCallbackBuilderHandle();
+}
+void exitLayoutCallbackBuilder(LayoutCallbackBuilderHandle handle) {
+  if (!inDebugBuild)
+    return;
+  assert(handle._active);
+  handle._active = false;
+  _inLayoutCallbackBuilder -= 1;
+}
 
 List<int> _debugFrameTimes = <int>[];
+
+void _absorbDirtyComponents(List<Component> list) {
+  list.addAll(_dirtyComponents);
+  _dirtyComponents.clear();
+  list.sort((Component a, Component b) => a._order - b._order);
+}
 
 void _buildDirtyComponents() {
   Stopwatch sw;
   if (_shouldLogRenderDuration)
     sw = new Stopwatch()..start();
 
+  _inRenderDirtyComponents = true;
   try {
     sky.tracing.begin('Widgets._buildDirtyComponents');
-    _inRenderDirtyComponents = true;
-
-    List<Component> sortedDirtyComponents = _dirtyComponents.toList();
-    sortedDirtyComponents.sort((Component a, Component b) => a._order - b._order);
-    for (var comp in sortedDirtyComponents) {
-      comp._buildIfDirty();
+    List<Component> sortedDirtyComponents = new List<Component>();
+    _absorbDirtyComponents(sortedDirtyComponents);
+    int index = 0;
+    while (index < sortedDirtyComponents.length) {
+      Component component = sortedDirtyComponents[index];
+      component._buildIfDirty();
+      if (_dirtyComponents.length > 0) {
+        // the following assert verifies that we're not rebuilding anyone twice in one frame
+        assert(_dirtyComponents.every((Component component) => !sortedDirtyComponents.contains(component)));
+        _absorbDirtyComponents(sortedDirtyComponents);
+        index = 0;
+      } else {
+        index += 1;
+      }
     }
-
-    _dirtyComponents.clear();
-    _buildScheduled = false;
   } finally {
+    _buildScheduled = false;
     _inRenderDirtyComponents = false;
     sky.tracing.end('Widgets._buildDirtyComponents');
   }
@@ -507,9 +646,7 @@ void _buildDirtyComponents() {
 }
 
 void _scheduleComponentForRender(Component c) {
-  assert(!_inRenderDirtyComponents);
   _dirtyComponents.add(c);
-
   if (!_buildScheduled) {
     _buildScheduled = true;
     new Future.microtask(_buildDirtyComponents);
@@ -536,6 +673,11 @@ abstract class RenderObjectWrapper extends Widget {
   void insertChildRoot(RenderObjectWrapper child, dynamic slot);
   void detachChildRoot(RenderObjectWrapper child);
 
+  void retainStatefulRenderObjectWrapper(RenderObjectWrapper newNode) {
+    newNode._root = _root;
+    newNode._ancestor = _ancestor;
+  }
+
   void _sync(RenderObjectWrapper old, dynamic slot) {
     // TODO(abarth): We should split RenderObjectWrapper into two pieces so that
     //               RenderViewObject doesn't need to inherit all this code it
@@ -543,19 +685,28 @@ abstract class RenderObjectWrapper extends Widget {
     assert(parent != null || this is RenderViewWrapper);
     if (old == null) {
       _root = createNode();
-      _ancestor = findAncestor(RenderObjectWrapper);
+      assert(_root != null);
+      _ancestor = findAncestorRenderObjectWrapper();
       if (_ancestor is RenderObjectWrapper)
         _ancestor.insertChildRoot(this, slot);
     } else {
       assert(old is RenderObjectWrapper);
       _root = old.root;
       _ancestor = old._ancestor;
+      assert(_root != null);
     }
     assert(_root == root); // in case a subclass reintroduces it
     assert(root != null);
     assert(mounted);
     _nodeMap[root] = this;
     syncRenderObject(old);
+  }
+
+  void updateSlot(dynamic newSlot) {
+    // We never use the slot except during sync(), in which
+    // case our parent is handing it to us anyway.
+    // We don't need to propagate this to our children, since
+    // we give them their own slots for them to fit into us.
   }
 
   void syncRenderObject(RenderObjectWrapper old) {
@@ -615,13 +766,17 @@ abstract class OneChildRenderObjectWrapper extends RenderObjectWrapper {
   Widget get child => _child;
 
   void walkChildren(WidgetTreeWalker walker) {
-    walker(child);
+    if (child != null)
+      walker(child);
   }
 
   void syncRenderObject(RenderObjectWrapper old) {
     super.syncRenderObject(old);
     Widget oldChild = old == null ? null : (old as OneChildRenderObjectWrapper).child;
-    _child = syncChild(child, oldChild, null);
+    Widget newChild = child;
+    _child = syncChild(newChild, oldChild, null);
+    assert((newChild == null && child == null) || (newChild != null && child.parent == this));
+    assert(oldChild == null || child == oldChild || oldChild.parent == null);
   }
 
   void insertChildRoot(RenderObjectWrapper child, dynamic slot) {
@@ -661,7 +816,7 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
   final List<Widget> children;
 
   void walkChildren(WidgetTreeWalker walker) {
-    for(Widget child in children)
+    for (Widget child in children)
       walker(child);
   }
 
@@ -725,6 +880,9 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
     void sync(int atIndex) {
       children[atIndex] = syncChild(currentNode, oldNode, nextSibling);
       assert(children[atIndex] != null);
+      assert(children[atIndex].parent == this);
+      if (atIndex > 0)
+        children[atIndex-1].updateSlot(children[atIndex].root);
     }
 
     // Scan backwards from end of list while nodes can be directly synced
@@ -828,6 +986,7 @@ abstract class MultiChildRenderObjectWrapper extends RenderObjectWrapper {
     while (oldStartIndex < oldEndIndex) {
       oldNode = oldChildren[oldStartIndex];
       syncChild(null, oldNode, null);
+      assert(oldNode.parent == null);
       advanceOldStartIndex();
     }
 
@@ -865,10 +1024,9 @@ class WidgetSkyBinding extends SkyBinding {
 
 }
 
-abstract class App extends Component {
+abstract class App extends StatefulComponent {
 
-  // Apps are assumed to be stateful
-  App({ String key }) : super(key: key, stateful: true);
+  App({ String key }) : super(key: key);
 
   void _handleEvent(sky.Event event) {
     if (event.type == 'back')
@@ -885,13 +1043,18 @@ abstract class App extends Component {
     SkyBinding.instance.removeEventListener(_handleEvent);
   }
 
+  void syncFields(Component source) { }
+
   // Override this to handle back button behavior in your app
-  void onBack() { }
+  // Call super.onBack() to finish the activity
+  void onBack() {
+    activity.finishCurrentActivity();
+  }
 }
 
-abstract class AbstractWidgetRoot extends Component {
+abstract class AbstractWidgetRoot extends StatefulComponent {
 
-  AbstractWidgetRoot() : super(stateful: true) {
+  AbstractWidgetRoot() {
     _mounted = true;
     _scheduleComponentForRender(this);
   }
@@ -933,8 +1096,6 @@ void runApp(App app, { RenderView renderViewOverride, bool enableProfilingLoop: 
     });
   }
 }
-
-typedef Widget Builder();
 
 class RenderBoxToWidgetAdapter extends AbstractWidgetRoot {
 

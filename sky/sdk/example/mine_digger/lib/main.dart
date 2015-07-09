@@ -5,13 +5,14 @@
 import 'dart:sky' as sky;
 import 'dart:math';
 
+import 'package:sky/painting/text_style.dart';
 import 'package:sky/rendering/flex.dart';
+import 'package:sky/theme/colors.dart' as colors;
 import 'package:sky/widgets/basic.dart';
 import 'package:sky/widgets/scaffold.dart';
-import 'package:sky/widgets/tool_bar.dart';
+import 'package:sky/widgets/task_description.dart';
 import 'package:sky/widgets/theme.dart';
-import 'package:sky/theme/colors.dart' as colors;
-import 'package:sky/painting/text_style.dart';
+import 'package:sky/widgets/tool_bar.dart';
 
 // Classic minesweeper-inspired game. The mouse controls are standard except
 // for left + right combo which is not implemented. For touch, the duration of
@@ -174,18 +175,21 @@ class Game {
     // FIXME: We need to build the board before we build the toolbar because
     // we compute the win state during build step.
     Widget board = buildBoard();
-    return new Scaffold(
-      toolbar: buildToolBar(),
-      body: new Container(
-        child: new Center(child: board),
-        decoration: new BoxDecoration(backgroundColor: colors.Grey[50])
+    return new TaskDescription(
+      label: 'Mine Digger',
+      child: new Scaffold(
+        toolbar: buildToolBar(),
+        body: new Container(
+          child: new Center(child: board),
+          decoration: new BoxDecoration(backgroundColor: colors.Grey[50])
+        )
       )
     );
   }
 
   void handleBannerPointerDown(sky.PointerEvent event) {
     initialize();
-    app.setState((){});
+    app.scheduleBuild();
   }
 
   // User action. The user uncovers the cell which can cause losing the game.
@@ -203,7 +207,7 @@ class Game {
       // No mine, uncover nearby if possible.
       cull(x, y);
     }
-    app.setState((){});
+    app.scheduleBuild();
   }
 
   // User action. The user is sure a mine is at this location.
@@ -215,7 +219,7 @@ class Game {
       uiState[y][x] = flaggedCell;
       ++detectedCount;
     }
-    app.setState((){});
+    app.scheduleBuild();
   }
 
   // Recursively uncovers cells whose totalMineCount is zero.

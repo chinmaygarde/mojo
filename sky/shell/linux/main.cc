@@ -11,6 +11,7 @@
 #include "base/i18n/icu_util.h"
 #include "base/logging.h"
 #include "base/message_loop/message_loop.h"
+#include "sky/engine/public/web/WebRuntimeFeatures.h"
 #include "sky/shell/platform_view.h"
 #include "sky/shell/service_provider.h"
 #include "sky/shell/shell.h"
@@ -24,31 +25,45 @@ namespace {
 
 void Usage() {
   std::cerr << "Usage: sky_shell"
+            << " --" << switches::kNonInteractive
             << " --" << switches::kPackageRoot << "=PACKAGE_ROOT"
+            << " --" << switches::kSnapshot << "=SNAPSHOT"
             << " [ MAIN_DART ]" << std::endl;
 }
 
 void Init() {
+  base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
+  blink::WebRuntimeFeatures::enableObservatory(
+      !command_line.HasSwitch(switches::kNonInteractive));
+
   Shell::Init(make_scoped_ptr(new ServiceProviderContext(
       base::MessageLoop::current()->task_runner())));
-
-  base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
+  // Explicitly boot the shared test runner.
+  TestRunner& runner = TestRunner::Shared();
 
   std::string package_root =
       command_line.GetSwitchValueASCII(switches::kPackageRoot);
+  runner.set_package_root(package_root);
 
-  std::string main;
-  auto args = command_line.GetArgs();
-  if (!args.empty())
-    main = args[0];
+  scoped_ptr<TestRunner::SingleTest> single_test;
+  if (command_line.HasSwitch(switches::kSnapshot)) {
+    single_test.reset(new TestRunner::SingleTest);
+    single_test->path = command_line.GetSwitchValueASCII(switches::kSnapshot);
+    single_test->is_snapshot = true;
+  } else {
+    auto args = command_line.GetArgs();
+    if (!args.empty()) {
+      single_test.reset(new TestRunner::SingleTest);
+      single_test->path = args[0];
+    }
+  }
 
-  TestRunner::Shared().set_package_root(package_root);
-  TestRunner::Shared().Start(main);
+  runner.Start(single_test.Pass());
 }
 
 }  // namespace
-} // namespace shell
-} // namespace sky
+}  // namespace shell
+}  // namespace sky
 
 int main(int argc, const char* argv[]) {
   base::AtExitManager exit_manager;
@@ -57,7 +72,8 @@ int main(int argc, const char* argv[]) {
   base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
 
   if (command_line.HasSwitch(sky::shell::switches::kHelp) ||
-      !command_line.HasSwitch(sky::shell::switches::kPackageRoot)) {
+      (!command_line.HasSwitch(sky::shell::switches::kPackageRoot) &&
+       !command_line.HasSwitch(sky::shell::switches::kSnapshot))) {
     sky::shell::Usage();
     return 0;
   }

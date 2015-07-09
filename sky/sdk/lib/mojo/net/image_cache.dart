@@ -2,45 +2,28 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:sky';
+import 'dart:async';
 import 'dart:collection';
+import 'dart:sky' as sky;
 
 import 'package:mojom/mojo/url_response.mojom.dart';
 
 import 'fetch.dart';
 
-final HashMap<String, List<ImageDecoderCallback>> _pendingRequests =
-  new HashMap<String, List<ImageDecoderCallback>>();
+final HashMap<String, Future<sky.Image>> _cache =
+    new HashMap<String, Future<sky.Image>>();
 
-final HashMap<String, Image> _completedRequests =
-  new HashMap<String, Image>();
-
-void _loadComplete(url, image) {
-  _completedRequests[url] = image;
-  _pendingRequests[url].forEach((c) => c(image));
-  _pendingRequests.remove(url);
-}
-
-void load(String url, ImageDecoderCallback callback) {
-  Image result = _completedRequests[url];
-  if (result != null) {
-    callback(_completedRequests[url]);
-    return;
-  }
-
-  bool newRequest = false;
-  _pendingRequests.putIfAbsent(url, () {
-    newRequest = true;
-    return new List<ImageDecoderCallback>();
-  }).add(callback);
-  if (newRequest) {
+Future<sky.Image> load(String url) {
+  return _cache.putIfAbsent(url, () {
+    Completer<sky.Image> completer = new Completer<sky.Image>();
     fetchUrl(url).then((UrlResponse response) {
       if (response.statusCode >= 400) {
-        _loadComplete(url, null);
-        return;
+        print("Failed to load image ${url}");
+        completer.complete(null);
+      } else {
+        new sky.ImageDecoder(response.body.handle.h, completer.complete);
       }
-      new ImageDecoder(response.body.handle.h,
-          (image) => _loadComplete(url, image));
     });
-  }
+    return completer.future;
+  });
 }

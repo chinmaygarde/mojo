@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import '../base/scheduler.dart' as scheduler;
 import 'curves.dart';
@@ -89,7 +88,7 @@ class AnimationGenerator extends Generator {
         startTime = timeStamp;
 
       double t = (timeStamp - (startTime + initialDelay)) / duration;
-      _lastTime = math.max(0.0, math.min(t, 1.0));
+      _lastTime = t.clamp(0.0, 1.0);
       return _lastTime;
     })
     .takeWhile(_checkForCompletion)

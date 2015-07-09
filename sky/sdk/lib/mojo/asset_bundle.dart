@@ -4,44 +4,78 @@
 
 import 'dart:async';
 import 'dart:sky' as sky;
+import "dart:sky.internals" as internals;
 
 import 'package:mojo/core.dart' as core;
 import 'package:mojom/mojo/asset_bundle/asset_bundle.mojom.dart';
 
-import 'shell.dart' as shell;
 import 'net/fetch.dart';
+import 'net/image_cache.dart' as image_cache;
+import 'shell.dart' as shell;
 
-Future<sky.Image> _decodeImage(core.MojoDataPipeConsumer assetData) {
-  Completer<sky.Image> completer = new Completer();
-  new sky.ImageDecoder(assetData.handle.h, completer.complete);
-  return completer.future;
+abstract class AssetBundle {
+  void close();
+  Future<sky.Image> loadImage(String key);
 }
 
-class AssetBundle {
-  AssetBundle(AssetBundleProxy this._bundle);
+class NetworkAssetBundle extends AssetBundle {
+  NetworkAssetBundle(Uri baseUrl) : _baseUrl = baseUrl;
+
+  final Uri _baseUrl;
+
+  void close() { }
+
+  Future<sky.Image> loadImage(String name) {
+    Uri url = _baseUrl.resolve(name);
+    return image_cache.load(url.toString());
+  }
+}
+
+Future _fetchAndUnpackBundle(String relativeUrl, AssetBundleProxy bundle) async {
+  core.MojoDataPipeConsumer bundleData = (await fetchUrl(relativeUrl)).body;
+  AssetUnpackerProxy unpacker = new AssetUnpackerProxy.unbound();
+  shell.requestService("mojo:asset_bundle", unpacker);
+  unpacker.ptr.unpackZipStream(bundleData, bundle);
+  unpacker.close();
+}
+
+class MojoAssetBundle extends AssetBundle {
+  MojoAssetBundle(AssetBundleProxy this._bundle);
+
+  factory MojoAssetBundle.fromNetwork(String relativeUrl) {
+    AssetBundleProxy bundle = new AssetBundleProxy.unbound();
+    _fetchAndUnpackBundle(relativeUrl, bundle);
+    return new MojoAssetBundle(bundle);
+  }
+
+  AssetBundleProxy _bundle;
+  Map<String, Future<sky.Image>> _imageCache = new Map<String, Future<sky.Image>>();
 
   void close() {
     _bundle.close();
     _bundle = null;
+    _imageCache = null;
   }
 
-  Future<sky.Image> fetchImage(String path) async {
-    core.MojoDataPipeConsumer assetData =
-        (await _bundle.ptr.getAsStream(path)).assetData;
-    return await _decodeImage(assetData);
+  Future<sky.Image> loadImage(String name) {
+    return _imageCache.putIfAbsent(name, () {
+      Completer<sky.Image> completer = new Completer<sky.Image>();
+      _bundle.ptr.getAsStream(name).then((response) {
+        new sky.ImageDecoder(response.assetData.handle.h, completer.complete);
+      });
+      return completer.future;
+    });
   }
-
-  AssetBundleProxy _bundle;
 }
 
-Future<AssetBundle> fetchAssetBundle(String url) async {
-  core.MojoDataPipeConsumer bundleData = (await fetchUrl(url)).body;
-
-  AssetUnpackerProxy unpacker = new AssetUnpackerProxy.unbound();
-  shell.requestService("mojo:asset_bundle", unpacker);
-  AssetBundleProxy bundle = new AssetBundleProxy.unbound();
-  unpacker.ptr.unpackZipStream(bundleData, bundle);
-  unpacker.close();
-
-  return new AssetBundle(bundle);
+AssetBundle _initRootBundle() {
+  try {
+    AssetBundleProxy bundle = new AssetBundleProxy.fromHandle(
+        new core.MojoHandle(internals.takeRootBundleHandle()));
+    return new MojoAssetBundle(bundle);
+  } catch (e) {
+    return null;
+  }
 }
+
+final AssetBundle rootBundle = _initRootBundle();
