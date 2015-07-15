@@ -11,6 +11,11 @@ if (is_android) {
 
 config("base_implementation") {
   defines = [ "BASE_IMPLEMENTATION" ]
+
+  if (is_ios) {
+    # base uses routines deprecated in iOS 8
+    cflags = [ "-Wno-deprecated-declarations" ]
+  }
 }
 
 if (is_win) {
@@ -39,7 +44,7 @@ source_set("base_paths") {
     "base_paths_win.h",
   ]
 
-  if (is_android || is_mac) {
+  if (is_android || is_mac || is_ios) {
     sources -= [ "base_paths_posix.cc" ]
   }
 
@@ -764,12 +769,20 @@ component("base") {
   }
 
   # Mac.
-  if (is_mac) {
+  if (is_mac || is_ios) {
+    # Common Desktop / iOS excludes
     sources -= [
       "native_library_posix.cc",
       "strings/sys_string_conversions_posix.cc",
       "threading/platform_thread_internal_posix.cc",
     ]
+
+    if (is_ios) {
+      sources -= [
+        "files/file_path_watcher_fsevents.cc",
+        "files/file_path_watcher_fsevents.h",
+      ]
+    }
   } else {
     # Non-Mac.
     sources -= [
@@ -812,6 +825,34 @@ component("base") {
         "linux_util.h",
       ]
     }
+  }
+
+  # iOS
+  if (is_ios) {
+    set_sources_assignment_filter([])
+
+    sources += [
+      "base_paths_mac.h",
+      "base_paths_mac.mm",
+      "files/file_util_mac.mm",
+      "mac/bundle_locations.h",
+      "mac/bundle_locations.mm",
+      "mac/foundation_util.h",
+      "mac/foundation_util.mm",
+      "mac/mach_logging.cc",
+      "mac/mach_logging.h",
+      "mac/scoped_mach_port.cc",
+      "mac/scoped_mach_port.h",
+      "mac/scoped_nsautorelease_pool.h",
+      "mac/scoped_nsautorelease_pool.mm",
+      "message_loop/message_pump_mac.h",
+      "message_loop/message_pump_mac.mm",
+      "strings/sys_string_conversions_mac.mm",
+      "threading/platform_thread_mac.mm",
+      "time/time_mac.cc",
+    ]
+
+    set_sources_assignment_filter(sources_assignment_filter)
   }
 
   if (!use_glib) {
@@ -1340,8 +1381,6 @@ test("base_unittests") {
   if (is_ios) {
     sources -= [
       "process/memory_unittest.cc",
-      "process/memory_unittest_mac.h",
-      "process/memory_unittest_mac.mm",
       "process/process_unittest.cc",
       "process/process_util_unittest.cc",
     ]

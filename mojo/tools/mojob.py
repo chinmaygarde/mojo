@@ -114,7 +114,7 @@ def _gn(config):
 
   _logger.debug('_gn()')
 
-  command = ['gn', 'gen', '--check']
+  command = ['gn', 'gen']
 
   gn_args = CommandLineForGNArgs(GNArgsForConfig(config))
   out_dir = _get_out_dir(config)
